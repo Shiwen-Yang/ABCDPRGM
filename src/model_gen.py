@@ -175,13 +175,9 @@ def grad_dir_reg(predictor, response, reg_parameter, cs = current_settings):
     digamma_alpha_sum = torch.digamma(torch.sum(alpha, axis = 1))
     mean_log = torch.digamma(alpha) - torch.stack([digamma_alpha_sum]*p).T
 
-
     bias_log = (torch.log(response) - mean_log.to(device)).reshape(-1) 
 
-
     grad = bias_log.matmul(predictor_mod * full_alpha)
-
-    
 
     grad = grad.to("cpu")
 
