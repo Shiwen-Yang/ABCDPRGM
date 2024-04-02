@@ -9,6 +9,10 @@ import torch
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 from functools import partial
 
+
+class Oracle_Align:
+    def __init__(self, reference, )
+
 #regular ASE
 def ASE(A, embed_dim):
     temp_svd = torch.svd_lowrank(A, q = embed_dim)
@@ -35,10 +39,6 @@ def orthogonal_procrustes(reference, need_embed_align, dim, ortho_mat = False):
     # Calculate the rotation matrix
     procrustes_sol = LRsvd_ASE[2] @ LRsvd_ASE[0].T
 
-    # # same code but uses full_svd
-    # svd_ASE = torch.svd(ASE_need_align.T @ reference)
-    # procrustes_sol = svd_ASE.V @ svd_ASE.U.T
-    
     # Apply the rotation to the aligned matrix
     aligned_ASE = ASE_need_align @ procrustes_sol.T
     last_dim = 1 - torch.sum(aligned_ASE, axis = 1).unsqueeze(1)
@@ -149,7 +149,7 @@ def GD_RDPG(A,X, L, tol=1e-3):
 
 class Op_Riemannian_GD:
     
-    def __init__(self, data, mode, softplus_parameter = 25,tolerance = 0.01):
+    def __init__(self, data, mode, softplus_parameter = 25, tolerance = 0.01):
 
         self.data = data
         self.tolerance = tolerance
