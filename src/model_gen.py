@@ -7,6 +7,7 @@
 #########################################################################################################################################################################
 import torch
 from torch.distributions import Dirichlet, Bernoulli, Uniform
+from src.Dirichlet_Reg import *
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class ABC_sim:
@@ -17,23 +18,10 @@ class ABC_sim:
         self.groups = groups
         self.parameter_vec = parameter_vec
         self.starting_lat_parameter_mat = starting_lat_parameter_mat
-        self.constraint = self.gen_constraint()
+        self.constraint = Dirichlet_GLM_log.gen_constraint(latent_space_dim)
         self.parameter_mat = self.gen_beta_mat()
         self.synth_data = self.simulate()
 
-    def gen_constraint(self):
-
-        p = self.latent_space_dim
-        temp = torch.cat([torch.eye(p-1), -torch.ones(p-1).unsqueeze(0).T], dim = 1)
-        temp = temp.reshape(-1)
-        core = torch.kron(torch.eye(3), temp).T
-        right = torch.zeros(core.shape[0], 1)
-        bot = torch.cat([torch.tensor([0,0,0,1.0]).unsqueeze(0)]*(p-1), dim = 0)
-        bot = torch.cat([bot, torch.ones(4).unsqueeze(0)])
-        A = torch.cat((torch.cat((core, right), dim = 1), bot), dim = 0)
-
-        return(A)
-    
     def gen_beta_mat(self):
         p = self.latent_space_dim
         parameter_mat = (self.constraint @ self.parameter_vec).reshape(3 * (p-1)+1, p)
@@ -64,7 +52,7 @@ class ABC_sim:
         self.starting_lat_parameter_mat = new_parameter
         self.groups = K
         self.latent_space_dim = p
-        self.constraint = self.gen_constraint()
+        self.constraint = self.gen_constraint(p)
         self.parameter_mat = self.gen_beta_mat()
         self.synth_data = self.simulate()
         
