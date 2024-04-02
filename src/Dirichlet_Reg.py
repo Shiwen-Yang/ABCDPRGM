@@ -3,12 +3,12 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 class Dirichlet_GLM_log:
 
-    def __init__(self, predictor, response, init_est = "idk", intercept_est = -10, tol = 10e-3):
+    def __init__(self, predictor, response, beta_guess = None, beta_0_guess = -10, tol = 10e-3):
         self.predictor = predictor
         self.response = response
         self.GD_tolerance = tol
-        self.int_est = intercept_est
-        self.init_est = init_est
+        self.beta_0_guess = beta_0_guess
+        self.beta_guess = beta_guess
         self.est_result = self.Dir_NGD()
 
     @staticmethod
@@ -31,7 +31,7 @@ class Dirichlet_GLM_log:
         return(A)
     
     @staticmethod
-    def linear_init(predictor, response, intercept_est, tol = 10e-3):
+    def linear_init(predictor, response, beta_0_guess, tol = 10e-3):
 
         n, p = response.shape
         pred = predictor[:, :(3*(p-1))]
@@ -74,7 +74,7 @@ class Dirichlet_GLM_log:
             i += 1
         
         result = torch.cat((Dirichlet_GLM_log.proj_beta(current_estimate, constraint_no_int), 
-                            torch.tensor([intercept_est])))
+                            torch.tensor([beta_0_guess])))
 
         return(result)
     
@@ -145,10 +145,10 @@ class Dirichlet_GLM_log:
         n, p = response.shape
         constraint = Dirichlet_GLM_log.gen_constraint(p).to(device)
 
-        if type(self.init_est) == torch.Tensor:
-            initial_estimate_mat = self.init_est.to(device)
+        if self.beta_guess is not None:
+            initial_estimate_mat = self.beta_guess.to(device)
         else: 
-            initial_estimate_mat = Dirichlet_GLM_log.linear_init(predictor, response, self.int_est).to(device)
+            initial_estimate_mat = Dirichlet_GLM_log.linear_init(predictor, response, self.beta_0_guess).to(device)
             initial_estimate_mat = (constraint @ initial_estimate_mat).reshape(3*(p-1)+1, p)
 
 
@@ -160,9 +160,6 @@ class Dirichlet_GLM_log:
         n_new = response.shape[0]
      
         next_estimate = initial_estimate_mat
-
-        print(next_estimate)
-    
 
         go = True
         i = 1
