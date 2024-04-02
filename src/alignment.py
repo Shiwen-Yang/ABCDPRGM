@@ -11,13 +11,48 @@ from functools import partial
 
 
 class Oracle_Align:
-    def __init__(self, reference, )
+    def __init__(self, reference, need_align_adj, embed_dimension):
+        self.reference = reference
+        self.need_align = need_align_adj
+        self.embed_dim = embed_dimension
+        self.embed_raw = self.ASE(need_align_adj, embed_dimension)
+        self.procrustes_sol = self.ortho_proc(reference[:,:embed_dimension], self.embed_raw[:,:embed_dimension])
+        self.embed_aligned = self.align()
+        
+    
+    @staticmethod
+    def ASE(A, embed_dim):
+        temp_svd = torch.svd_lowrank(A, q = embed_dim)
+        temp_ASE = temp_svd[0] @ torch.diag(torch.sqrt(temp_svd[1]))
+        return(temp_ASE)
+    
+    @staticmethod
+    def ortho_proc(reference, need_align):
+        n, p = reference.shape
+
+        # Perform partial SVD (dim = (p-1)) on the product of the matrices, since latent position has rank (p-1)
+        LRsvd_ASE = torch.svd_lowrank(need_align.T @ reference, q = p)
+
+        # Calculate the rotation matrix
+        procrustes_sol = LRsvd_ASE[2] @ LRsvd_ASE[0].T
+
+        return(procrustes_sol.T)
+    
+    def align(self):
+        need_align = self.embed_raw
+        procrustes_sol = self.procrustes_sol
+
+        aligned_ASE = need_align @ procrustes_sol
+        last_dim = 1 - torch.sum(aligned_ASE, axis = 1).unsqueeze(1)
+        aligned_ASE_full = torch.cat((aligned_ASE, last_dim), dim = 1)
+        return(aligned_ASE_full)
+
+
+
+
 
 #regular ASE
-def ASE(A, embed_dim):
-    temp_svd = torch.svd_lowrank(A, q = embed_dim)
-    temp_ASE = temp_svd[0] @ torch.diag(torch.sqrt(temp_svd[1]))
-    return(temp_ASE)
+
 
 #orthogonal procrustes used to align the ASE with the real latent position (or a reasonably estimated one)
 def orthogonal_procrustes(reference, need_embed_align, dim, ortho_mat = False):
