@@ -19,7 +19,6 @@ class ABC_sim:
         self.starting_lat_parameter_mat = starting_lat_parameter_mat
         self.constraint = self.gen_constraint()
         self.parameter_mat = self.gen_beta_mat()
-        # self.rand_initialization = self.gen_init()
         self.synth_data = self.simulate()
 
     def gen_constraint(self):
@@ -73,13 +72,6 @@ class ABC_sim:
         self.parameter_vec = new_vec
         self.parameter_mat = self.gen_beta_mat()
         self.synth_data = self.simulate()
-    
-    def change_constraint(self, constraint_on_off):
-        p = self.latent_space_dim
-        if str(constraint_on_off) == "on":
-            self.constraint = self.gen_constraint()
-        else:
-            self.constraint = torch.eye(3*(p-1) + 1)
 
     @staticmethod
     def init_Z(n_nodes, init_distr_mat):
@@ -91,7 +83,7 @@ class ABC_sim:
     @staticmethod
     def gen_Y(Z):
         n, p = Z.shape
-            #take out the last dimension to deal with linear dependency
+        #take out the last dimension to deal with linear dependency
         Z_s = Z[:, :(p-1)].to(device)      
 
         #generate the parameter probability matrix from the latent positions, since the proceeding adj matrix has to be symmetric, we only keep the upper triangular portiion.
@@ -178,7 +170,7 @@ class ABC_sim:
         lat_pos = torch.cat([Z0.unsqueeze(dim = 0), Z_next.unsqueeze(dim = 0)], dim = 0)
         obs_adj = torch.cat([Y0.unsqueeze(dim = 0), Y_next.unsqueeze(dim = 0)], dim = 0)
         
-        t = 2
+        t = 3
         while t <= N:
             Z_next = self.next_Z(Y_next, Z_next, para_mat, K)
             Y_next = self.gen_Y(Z_next)
