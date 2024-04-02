@@ -52,7 +52,7 @@ class ABC_sim:
         self.starting_lat_parameter_mat = new_parameter
         self.groups = K
         self.latent_space_dim = p
-        self.constraint = self.gen_constraint(p)
+        self.constraint = Dirichlet_GLM_log.gen_constraint(p)
         self.parameter_mat = self.gen_beta_mat()
         self.synth_data = self.simulate()
         
