@@ -182,7 +182,13 @@ class fit:
             i += 1
             if i > 100:
                 return(init_est_mat*0)
-            
-        result_dic = {"final_estimate" : next_estimate, "final_fisher_info": current_fisher_info, "ASE_info_lost": (1 - n_new/n)}
+        
+        
+        next_estimate = next_estimate.to("cpu")
+        current_fisher_info = current_fisher_info.to("cpu")
+        result_dic = {"estimate" : next_estimate, "fisher_info": current_fisher_info, "info_lost": (1 - n_new/n)}
+
+        del(current_gradient, current_fisher_info, step, next_estimate, B, constraint, init_est_vec)
+        torch.cuda.empty_cache()
 
         return(result_dic)
