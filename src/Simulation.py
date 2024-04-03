@@ -7,10 +7,10 @@
 #########################################################################################################################################################################
 import torch
 from torch.distributions import Dirichlet, Bernoulli, Uniform
-from src.Dirichlet_Reg import *
+from src import Dir_Reg
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-class ABC_sim:
+class ABC:
 
     def __init__(self, time, nodes, beta, alpha_0):
 
@@ -25,7 +25,7 @@ class ABC_sim:
             self.beta = torch.as_tensor(beta, dtype = torch.float)
             self.alpha_0 = torch.as_tensor(alpha_0, dtype = torch.float)
             self.K, self.p = self.alpha_0.shape
-            self.C = Dirichlet_GLM_log.gen_constraint(self.p, True)
+            self.C = Dir_Reg.fit.gen_constraint(self.p, True)
             self.B = (self.C @ self.beta).reshape(3 * (self.p - 1) + 1, self.p)
             self.dict = {"T": self.T,
                          "n": self.n,
@@ -59,6 +59,7 @@ class ABC_sim:
         init_dist = Dirichlet(alpha_0)
         init_samp = init_dist.sample((int(n/K),)).transpose(0, 1).reshape(n, p)
         return(init_samp)
+    
     @staticmethod
     def gen_Y(Z):
         n, p = Z.shape
@@ -121,7 +122,7 @@ class ABC_sim:
 
         Y = Y.to(device)
         Z = Z.to(device)
-        X = ABC_sim.gen_X(Y, Z, K_groups).to(device)
+        X = ABC.gen_X(Y, Z, K_groups).to(device)
 
         alpha = torch.exp(X.matmul(B))
         samp = Dirichlet(alpha).sample((1,))[0]

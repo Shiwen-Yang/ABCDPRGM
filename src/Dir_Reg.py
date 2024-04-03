@@ -1,7 +1,7 @@
 import torch
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-class Dirichlet_GLM_log:
+class fit:
 
     def __init__(self, predictor, response, constrained = False, beta_guess = None, beta_0_guess = -10, tol = 10e-3):
         self.predictor = predictor
@@ -54,7 +54,7 @@ class Dirichlet_GLM_log:
         first_estimate_no_int = H.matmul(torch.log(response))
 
         def new_response(estimate_no_int):
-            estimate_core = Dirichlet_GLM_log.proj_beta(estimate_no_int, constraint_no_int)
+            estimate_core = fit.proj_beta(estimate_no_int, constraint_no_int)
 
             L = torch.tensor([0, 0, torch.sum(estimate_core)])
             exp_lambda = torch.exp(L).repeat(p,1).T
@@ -72,12 +72,12 @@ class Dirichlet_GLM_log:
 
             new_estimate = H @ current_response
 
-            change = torch.norm(Dirichlet_GLM_log.proj_beta((new_estimate - current_estimate), constraint_no_int), p = "fro")
+            change = torch.norm(fit.proj_beta((new_estimate - current_estimate), constraint_no_int), p = "fro")
             current_estimate = new_estimate
             go = change > tol
             i += 1
         
-        result = torch.cat((Dirichlet_GLM_log.proj_beta(current_estimate, constraint_no_int), 
+        result = torch.cat((fit.proj_beta(current_estimate, constraint_no_int), 
                             torch.tensor([beta_0_guess])))
 
         return(result)
@@ -85,7 +85,7 @@ class Dirichlet_GLM_log:
     @staticmethod
     def grad_dir_reg(predictor, response, reg_parameter, constrained = False):
         n, p = response.shape
-        constraint = Dirichlet_GLM_log.gen_constraint(p, constrained).to(device)
+        constraint = fit.gen_constraint(p, constrained).to(device)
 
         predictor = predictor.to(device)
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
@@ -113,7 +113,7 @@ class Dirichlet_GLM_log:
     def fish_dir_reg(predictor, response, reg_parameter, constrained = False):
 
         n, p = response.shape
-        constraint = Dirichlet_GLM_log.gen_constraint(p, constrained).to(device)
+        constraint = fit.gen_constraint(p, constrained).to(device)
         
         predictor = predictor.to(device)
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
@@ -146,13 +146,13 @@ class Dirichlet_GLM_log:
         predictor = self.predictor
         response = self.response
         n, p = response.shape
-        B = Dirichlet_GLM_log.gen_constraint(p, True).to(device)
-        constraint = Dirichlet_GLM_log.gen_constraint(p, constrained).to(device)
+        B = fit.gen_constraint(p, True).to(device)
+        constraint = fit.gen_constraint(p, constrained).to(device)
 
         if self.beta_guess is not None:
             init_est_vec = self.beta_guess.to(device)
         else: 
-            init_est_vec = Dirichlet_GLM_log.linear_init(predictor, response, self.beta_0_guess).to(device)
+            init_est_vec = fit.linear_init(predictor, response, self.beta_0_guess).to(device)
         
         init_est_mat = (B @ init_est_vec).reshape(3*(p-1)+1, p)
 
@@ -169,9 +169,9 @@ class Dirichlet_GLM_log:
         i = 1
         while go:
         
-            current_gradient = Dirichlet_GLM_log.grad_dir_reg(predictor, response, next_estimate, constrained)
+            current_gradient = fit.grad_dir_reg(predictor, response, next_estimate, constrained)
         
-            current_fisher_info = Dirichlet_GLM_log.fish_dir_reg(predictor, response, next_estimate, constrained)
+            current_fisher_info = fit.fish_dir_reg(predictor, response, next_estimate, constrained)
         
             step = torch.linalg.solve(current_fisher_info, current_gradient).to(device)
             

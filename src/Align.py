@@ -10,7 +10,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 from functools import partial
 
 
-class Oracle_Align:
+class Oracle:
     def __init__(self, reference, need_align_adj, embed_dimension):
         self.reference = reference
         self.need_align = need_align_adj
