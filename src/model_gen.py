@@ -25,7 +25,7 @@ class ABC_sim:
             self.beta = torch.as_tensor(beta, dtype = torch.float)
             self.alpha_0 = torch.as_tensor(alpha_0, dtype = torch.float)
             self.K, self.p = self.alpha_0.shape
-            self.C = Dirichlet_GLM_log.gen_constraint(self.p)
+            self.C = Dirichlet_GLM_log.gen_constraint(self.p, True)
             self.B = (self.C @ self.beta).reshape(3 * (self.p - 1) + 1, self.p)
             self.dict = {"T": self.T,
                          "n": self.n,

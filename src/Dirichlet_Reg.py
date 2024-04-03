@@ -3,10 +3,11 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 class Dirichlet_GLM_log:
 
-    def __init__(self, predictor, response, beta_guess = None, beta_0_guess = -10, tol = 10e-3):
+    def __init__(self, predictor, response, constrained = False, beta_guess = None, beta_0_guess = -10, tol = 10e-3):
         self.predictor = predictor
         self.response = response
         self.GD_tolerance = tol
+        self.constrained = constrained
         self.beta_0_guess = beta_0_guess
         self.beta_guess = beta_guess
         self.est_result = self.Dir_NGD()
@@ -17,16 +18,19 @@ class Dirichlet_GLM_log:
         return(torch.linalg.solve(A.T @ A, A.T) @ B.reshape(-1))
     
     @staticmethod
-    def gen_constraint(lat_dim):
+    def gen_constraint(lat_dim, constrained = False):
 
         p = lat_dim
-        temp = torch.cat([torch.eye(p-1), -torch.ones(p-1).unsqueeze(0).T], dim = 1)
-        temp = temp.reshape(-1)
-        core = torch.kron(torch.eye(3), temp).T
-        right = torch.zeros(core.shape[0], 1)
-        bot = torch.cat([torch.tensor([0,0,0,1.0]).unsqueeze(0)]*(p-1), dim = 0)
-        bot = torch.cat([bot, torch.ones(4).unsqueeze(0)])
-        A = torch.cat((torch.cat((core, right), dim = 1), bot), dim = 0)
+        if constrained == False:
+            A = torch.eye((3*(p-1)+1)*p)
+
+        else:
+            temp = torch.cat([torch.eye(p-1), -torch.ones(p-1).unsqueeze(0).T], dim = 1).reshape(-1)
+            core = torch.kron(torch.eye(3), temp).T
+            right = torch.zeros(core.shape[0], 1)
+            bot = torch.cat([torch.tensor([0,0,0,1.0]).unsqueeze(0)]*(p-1), dim = 0)
+            bot = torch.cat([bot, torch.ones(4).unsqueeze(0)])
+            A = torch.cat((torch.cat((core, right), dim = 1), bot), dim = 0)
 
         return(A)
     
@@ -79,14 +83,13 @@ class Dirichlet_GLM_log:
         return(result)
     
     @staticmethod
-    def grad_dir_reg(predictor, response, reg_parameter):
+    def grad_dir_reg(predictor, response, reg_parameter, constrained = False):
         n, p = response.shape
-        constraint = Dirichlet_GLM_log.gen_constraint(p).to(device)
+        constraint = Dirichlet_GLM_log.gen_constraint(p, constrained).to(device)
 
         predictor = predictor.to(device)
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
         full_alpha = torch.stack([alpha.reshape(-1)]*(constraint.shape[1]), dim = 1)
-        # check the K parameter here, might just be a 4
 
         predictor = torch.kron(predictor.to(device), torch.eye(p).to(device)).to_sparse()
         response = response.to(device)
@@ -107,10 +110,10 @@ class Dirichlet_GLM_log:
         return(grad)
     
     @staticmethod
-    def fish_dir_reg(predictor, response, reg_parameter):
+    def fish_dir_reg(predictor, response, reg_parameter, constrained = False):
 
         n, p = response.shape
-        constraint = Dirichlet_GLM_log.gen_constraint(p).to(device)
+        constraint = Dirichlet_GLM_log.gen_constraint(p, constrained).to(device)
         
         predictor = predictor.to(device)
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
@@ -139,18 +142,19 @@ class Dirichlet_GLM_log:
     
     def Dir_NGD(self):
 
-
+        constrained = self.constrained
         predictor = self.predictor
         response = self.response
         n, p = response.shape
-        constraint = Dirichlet_GLM_log.gen_constraint(p).to(device)
+        B = Dirichlet_GLM_log.gen_constraint(p, True).to(device)
+        constraint = Dirichlet_GLM_log.gen_constraint(p, constrained).to(device)
 
         if self.beta_guess is not None:
-            initial_estimate_mat = self.beta_guess.to(device)
+            init_est_vec = self.beta_guess.to(device)
         else: 
-            initial_estimate_mat = Dirichlet_GLM_log.linear_init(predictor, response, self.beta_0_guess).to(device)
-            initial_estimate_mat = (constraint @ initial_estimate_mat).reshape(3*(p-1)+1, p)
-
+            init_est_vec = Dirichlet_GLM_log.linear_init(predictor, response, self.beta_0_guess).to(device)
+        
+        init_est_mat = (B @ init_est_vec).reshape(3*(p-1)+1, p)
 
         temp = torch.cat((response, predictor), dim = 1)
         indicator = (temp >= 0) & (temp <= 1)
@@ -159,15 +163,15 @@ class Dirichlet_GLM_log:
         response, predictor = filtered[:,:p], filtered[:,p:]
         n_new = response.shape[0]
      
-        next_estimate = initial_estimate_mat
+        next_estimate = init_est_mat
 
         go = True
         i = 1
         while go:
         
-            current_gradient = Dirichlet_GLM_log.grad_dir_reg(predictor, response, next_estimate)
+            current_gradient = Dirichlet_GLM_log.grad_dir_reg(predictor, response, next_estimate, constrained)
         
-            current_fisher_info = Dirichlet_GLM_log.fish_dir_reg(predictor, response, next_estimate)
+            current_fisher_info = Dirichlet_GLM_log.fish_dir_reg(predictor, response, next_estimate, constrained)
         
             step = torch.linalg.solve(current_fisher_info, current_gradient).to(device)
             
@@ -177,7 +181,7 @@ class Dirichlet_GLM_log:
             
             i += 1
             if i > 100:
-                return(initial_estimate_mat*0)
+                return(init_est_mat*0)
             
         result_dic = {"final_estimate" : next_estimate, "final_fisher_info": current_fisher_info, "ASE_info_lost": (1 - n_new/n)}
 
