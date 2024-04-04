@@ -2,23 +2,91 @@ import torch
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class fit:
+    """
+
+    Fit a Dirichlet GLM with a log link. MLE obtained using Fisher's Scoring Algorithm.
+
+    Args:
+        predictor (torch.tensor of shape n by (3p-2)): the design matrix.
+        response (torch.tensor of shape n by p): the response matrix.
+        constrained (bool): whether estimate beta as a 4 dimensional vector or (3p-2) x p matrix. 
+        beta_guess (torch.tensor of shape 4): a vector to initiate the gradient descent
+        beta_0_guess (float): estimate of the intercept term but negative. 
+        tol (float): a stopping criterion for the gradient descent algorithm.
+
+    Attributes:
+        settings (class): a class object with attributes "constrained", "beta_guess", "beta_0_guess", and "tol"
+        est_result (dictionary): estimated beta, fisher's information, and percent of rows of data with negative entries
+    
+    """
 
     def __init__(self, predictor, response, constrained = False, beta_guess = None, beta_0_guess = -10, tol = 10e-3):
         self.predictor = predictor
         self.response = response
-        self.GD_tolerance = tol
-        self.constrained = constrained
-        self.beta_0_guess = beta_0_guess
-        self.beta_guess = beta_guess
+        self.settings = self.reg_settings(constrained, beta_guess, beta_0_guess, tol)
+        self.est_result = self.Dir_NGD()
+
+    class reg_settings:
+        def __init__(self, constrained, beta_guess, beta_0_guess, tol):
+            self.constrained = constrained
+            self.beta_guess = beta_guess
+            self.beta_0_guess = beta_0_guess
+            self.tol = tol
+    
+    def update_settings(self, constrained = None, beta_guess = None, beta_0_guess = None, tol = None):
+
+        """  
+        Update the settings of the gradient descent, then rerun the gradient descent.
+
+        Args:
+        constrained (bool): whether estimate beta as a 4 dimensional vector or (3p-2) x p matrix. 
+        beta_guess (torch.tensor of shape 4): a vector to initiate the gradient descent
+        beta_0_guess (float): estimate of the intercept term but negative. 
+        tol (float): a stopping criterion for the gradient descent algorithm.
+
+        """
+        updated_settings = {
+            "constrained": constrained if constrained is not None else self.settings.constrained,
+            "beta_guess": beta_guess if beta_guess is not None else self.settings.beta_guess,
+            "beta_0_guess": beta_0_guess if beta_0_guess is not None else self.settings.beta_0_guess,
+            "tol": tol if tol is not None else self.settings.tol,
+        }
+        self.settings = self.reg_settings(**updated_settings)
         self.est_result = self.Dir_NGD()
 
     @staticmethod
     def proj_beta(B, constraint):
+
+        """  
+        Given a (3p-2) by p matrix B, project it to the column space of a constraint matrix to get beta, the desired 4 dimensional estimator
+
+        Args:
+            B (torch.Tensor of shape (3p-2) by p): the estimated matrix B
+            constraint (torch.tensor of shape (3p-2)p by 4): the constraint matrix, C, such that vec(B) = C * beta
+
+        Returns:
+            beta_tilde (torch.tensor of shape 4): the desired 4 dimensional estimator
+        """
         A = constraint
         return(torch.linalg.solve(A.T @ A, A.T) @ B.reshape(-1))
     
     @staticmethod
     def gen_constraint(lat_dim, constrained = False):
+
+
+        """ 
+        Let beta be the m dimensional parameter of interest. Let the (3p-2) by p matrix B be the parameter that we estimate.
+        This generate a constraint matrix, C, such that vec(B) = C * beta
+
+        Args: 
+            lat_dim (int): the dimension of the latent space
+            constrained (bool): if true, beta is assumped to be 4 dimensional, otherwise, beta is assumed to be vec(B)
+
+        Returns:
+            constraint (torch.tensor of shape (3p-2)*p by m): when constrained is true, return a (3p-2)p by 4 matrix, C, such that vec(B) = C * beta
+            when constrained is false, return the (3p-2)p identity
+        
+        """
 
         p = lat_dim
         if constrained == False:
@@ -35,17 +103,54 @@ class fit:
         return(A)
     
     @staticmethod
+    def exclu_neg_res_pred(response, predictor):
+
+        """ 
+
+        Exclude all response-predictor pair that contains negative entries from ASE
+
+        Args:
+            response (torch.tensor of shape n by p)
+            predictor (torch.tensor of shape n by (3p-2))
+        
+        Returns: 
+            predictor and response with rows that have negative entries removed.
+
+        """
+        
+        n, p = response.shape
+        temp = torch.cat((response, predictor), dim = 1)
+        indicator = (temp >= 0) & (temp <= 1)
+        filtered = temp[indicator.all(dim = 1)]
+        response, pred = filtered[:,:p], filtered[:,p:]
+        n_new = response.shape[0]
+
+        result_dict = {"pred": pred, "response": response, "n_new": n_new}
+
+        return(result_dict)
+    
+    @staticmethod
     def linear_init(predictor, response, beta_0_guess, tol = 10e-3):
+
+        """ 
+        Returns an initialization for the gradient descent algorithm based on some method of moment heuristic. 
+
+        Args: 
+            response (torch.tensor of shape n by p)
+            predictor (torch.Tensor of shape n by (3p-2))
+            beta_0_guess (float, negative): the intercept that the heuristic cannot estimate. Use smaller guess, e.g.
+            -10 -> -20, when trouble is encountered
+
+        Returns:
+            (torch.tensor of shape 4): A seemingly reliable matrix to initialize the gradient descent. 
+         
+        """
 
         n, p = response.shape
         pred = predictor[:, :(3*(p-1))]
 
-
-        temp = torch.cat((response, pred), dim = 1)
-        indicator = (temp > 0) & (temp <= 1)
-        filtered = temp[indicator.all(dim = 1)]
-        response, pred = filtered[:,:p], filtered[:,p:]
-        n_new = response.shape[0]
+        split = fit.exclu_neg_res_pred(response, pred)
+        response, pred, n_new = split["response"], split["pred"], split["n_new"]
 
         H = torch.linalg.solve((pred.T @ pred), pred.T)
 
@@ -84,6 +189,22 @@ class fit:
     
     @staticmethod
     def grad_dir_reg(predictor, response, reg_parameter, constrained = False):
+
+        """
+        Computes the gradient of the loss function for a Dirichlet Generalized Linear Model (GLM)
+        with a logarithmic link function, optionally including a regularization term.
+
+        Args:
+            response (torch.Tensor of shape n by p)
+            predictor (torch.Tensor of shape n by (3p-2))
+            reg_parameter (float): beta, the parameter that derivative is taken with respect to.
+            constrained (bool, optional): whether beta is estimated as a 4  or (3p-2)p dimensional vector
+
+        Returns:
+            torch.Tensor: The gradient of the loss function with respect to the model parameters.
+
+        """
+
         n, p = response.shape
         constraint = fit.gen_constraint(p, constrained).to(device)
 
@@ -111,6 +232,21 @@ class fit:
     
     @staticmethod
     def fish_dir_reg(predictor, response, reg_parameter, constrained = False):
+
+        
+        """
+        Computes the Fisher's Information Matrix of the loss function for a Dirichlet GLM with a log link.
+
+        Args:
+            response (torch.Tensor of shape n by p)
+            predictor (torch.Tensor of shape n by p)
+            reg_parameter (torch.Tensor of shape (3p - 2) by p): beta, the parameter of interest.
+            constrained (bool, optional): whether beta is estimated as a 4  or (3p-2)p dimensional vector
+
+        Returns:
+            (torch.Tensor of shape 4 by 4 or (3p-2)p by (3p-2)p): The Fisher's Info of the MLE of the model parameters.
+
+        """
 
         n, p = response.shape
         constraint = fit.gen_constraint(p, constrained).to(device)
@@ -141,27 +277,32 @@ class fit:
         return(fish)
     
     def Dir_NGD(self):
+        """ 
+        Fisher's Scoring algorithm. When the step size exceeds the tolerance after 100 iterations, returns the 0 matrix.
+        
+        Returns:
+            estimate (torch.tensor of shape (3p -2) by p): the MLE
+            fisher_info (torch.Tensor of shape 4 by 4 or (3p-2)p by (3p-2)p): The Fisher's Info of the MLE of the model parameters.
+            info_lost (float): percentage of rows in design matrix and response that contains negative entries
+        """
 
-        constrained = self.constrained
-        predictor = self.predictor
-        response = self.response
+        constrained = self.settings.constrained
+        predictor, response = self.predictor, self.response
+
         n, p = response.shape
         B = fit.gen_constraint(p, True).to(device)
         constraint = fit.gen_constraint(p, constrained).to(device)
 
-        if self.beta_guess is not None:
-            init_est_vec = self.beta_guess.to(device)
+        if self.settings.beta_guess is not None:
+            init_est_vec = self.settings.beta_guess.to(device)
         else: 
-            init_est_vec = fit.linear_init(predictor, response, self.beta_0_guess).to(device)
+            init_est_vec = fit.linear_init(predictor, response, self.settings.beta_0_guess).to(device)
         
         init_est_mat = (B @ init_est_vec).reshape(3*(p-1)+1, p)
 
-        temp = torch.cat((response, predictor), dim = 1)
-        indicator = (temp >= 0) & (temp <= 1)
-        filtered = temp[indicator.all(dim = 1)]
-        
-        response, predictor = filtered[:,:p], filtered[:,p:]
-        n_new = response.shape[0]
+
+        split = fit.exclu_neg_res_pred(response, predictor)
+        response, predictor, n_new = split["response"], split["pred"], split["n_new"]
      
         next_estimate = init_est_mat
 
@@ -177,7 +318,7 @@ class fit:
             
             next_estimate = next_estimate + (constraint.matmul(step)).reshape(3*(p-1)+1, p)
 
-            go = (torch.norm(step, p = "fro") > self.GD_tolerance)
+            go = (torch.norm(step, p = "fro") > self.settings.tol)
             
             i += 1
             if i > 100:

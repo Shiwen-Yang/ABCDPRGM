@@ -36,20 +36,17 @@ class ABC:
 
     def update_settings(self, time = None, nodes = None, beta = None, alpha_0 = None):
 
-        if time is None:
-            time = self.settings.T
+        updated_settings = {
+            "time": time if time is not None else self.settings.T,
+            "nodes": nodes if nodes is not None else self.settings.n,
+            "beta": beta if beta is not None else self.settings.beta,
+            "alpha_0": alpha_0 if alpha_0 is not None else self.settings.alpha_0,
+        }
 
-        if nodes is None:
-            nodes = self.settings.n
+        # Assuming ABC_settings is a method that updates the settings
+        # Or if ABC_settings is a class, instantiate it with the updated settings
+        self.settings = self.ABC_settings(**updated_settings)
         
-        if beta is None:
-            beta = self.settings.beta
-        
-        if alpha_0 is None:
-            alpha_0 = self.settings.alpha_0
-        
-        self.settings = self.ABC_settings(time, nodes, beta, alpha_0)
-
         self.synth_data = self.simulate()
 
     @staticmethod
