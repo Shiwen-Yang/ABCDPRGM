@@ -1,5 +1,6 @@
 import torch
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device("mps") if torch.backends.mps.is_available() else device
 
 class fit:
     """
@@ -212,7 +213,13 @@ class fit:
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
         full_alpha = torch.stack([alpha.reshape(-1)]*(constraint.shape[1]), dim = 1)
 
-        predictor = torch.kron(predictor.to(device), torch.eye(p).to(device)).to_sparse()
+        # some things in here are done on every iteration but could be done in advance
+        # could set up an internal function to call and if it hasn't been done already then 
+        # you can run it otherwise just return what you have
+        # already computed
+        predictor = torch.kron(predictor.to(device), torch.eye(p).to(device))
+        if device != torch.device("mps"):
+            predictor = predictor.to_sparse()
         response = response.to(device)
         predictor_mod = torch.sparse.mm(predictor, constraint)
 
@@ -255,15 +262,21 @@ class fit:
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
         full_alpha = torch.stack([alpha.reshape(-1)]*(constraint.shape[1]), dim = 1)
 
-        predictor = torch.kron(predictor, torch.eye(p).to(device)).to_sparse()
+        predictor = torch.kron(predictor, torch.eye(p).to(device))
+        if device != torch.device("mps"):
+            predictor = predictor.to_sparse()
         response = response.to(device)
         predictor_mod = torch.sparse.mm(predictor, constraint.to(device))
 
         p1 = predictor_mod * full_alpha
     
-        var_p1 = torch.diag(torch.polygamma(1, alpha).reshape(-1)).to_sparse()
+        var_p1 = torch.diag(torch.polygamma(1, alpha).reshape(-1))
 
-        var_p2 = torch.kron(torch.diag(torch.polygamma(1, torch.sum(alpha, axis = 1))), torch.ones(p, p).to(device)).to_sparse()
+        var_p2 = torch.kron(torch.diag(torch.polygamma(1, torch.sum(alpha, axis = 1))), torch.ones(p, p).to(device))
+
+        if device != torch.device("mps"):
+            var_p1 = var_p1.to_sparse()
+            var_p2 = var_p2.to_sparse()
     
         var_dir = var_p1 - var_p2
 
