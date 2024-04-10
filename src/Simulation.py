@@ -269,14 +269,20 @@ class ABC_Monte_Carlo:
             method_to_concat = [item for item in method_list if item is not None]
 
             est = torch.cat(est_to_concat, dim = 0).unsqueeze(dim = 1)
+
+
             method_core = torch.cat(method_to_concat, dim = 0)
             est_constrained = torch.tensor([constrained]).repeat(n_type * p * q).unsqueeze(dim = 1)
             est_nodes = torch.ones(n_type * q * p, 1) * nodes
             est_component = torch.arange(q*p).repeat(n_type).unsqueeze(dim = 1)
             est_method = torch.kron(method_core, torch.ones(q*p, 1))
             real = self.settings.init_model.settings.B.reshape(-1).repeat(n_type).unsqueeze(dim = 1)
-
-            est_full = torch.cat([est_nodes, est_constrained, est_method, est_component, est, real], dim = 1)
+            
+            if seed is not None:
+                seed_list = torch.ones(n_type * q * p, 1) * seed
+                est_full = torch.cat([seed_list, est_nodes, est_constrained, est_method, est_component, est, real], dim = 1)
+            else:
+                est_full = torch.cat([est_nodes, est_constrained, est_method, est_component, est, real], dim = 1)
 
             fish_list = [fish_OL, fish_OA, fish_NO]
             fish_to_concat = [item for item in fish_list if item is not None]
@@ -312,8 +318,12 @@ class ABC_Monte_Carlo:
                     fish_result_list.append(fish)
             
             est_result = torch.cat(est_result_list, dim = 0)
-            est_result = pd.DataFrame(est_result, 
-                                    columns = ["nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real"])
+            if self.settings.seeded:
+                est_result = pd.DataFrame(est_result, 
+                                          columns = ["seed", "nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real"])
+            else:
+                est_result = pd.DataFrame(est_result, 
+                                          columns = ["nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real"])
             
             for column in est_result.columns:
                 if not column.startswith('B_'):
