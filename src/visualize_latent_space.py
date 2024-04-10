@@ -2,7 +2,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 def lat_vis(df, LB, col):
-    sns.scatterplot(x = df[:, 0], y = df[:, 1], s = 1, color = col)
+    sns.scatterplot(x = df[:, 0], y = df[:, 1], s = 2, color = col)
     plt.xlim(LB, 1)
     plt.ylim(LB, 1)
     plt.axvline(x=0, color = "red")

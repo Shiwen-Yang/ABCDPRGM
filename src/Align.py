@@ -16,7 +16,7 @@ class Oracle:
         self.need_align = need_align_adj
         self.embed_dim = embed_dimension
         self.embed_raw = self.ASE(need_align_adj, embed_dimension)
-        self.procrustes_sol = self.ortho_proc(reference[:,:embed_dimension], self.embed_raw[:,:embed_dimension])
+        self.align_mat = self.ortho_proc(reference[:,:embed_dimension], self.embed_raw[:,:embed_dimension])
         self.embed_aligned = self.align()
         
     
@@ -34,15 +34,15 @@ class Oracle:
         LRsvd_ASE = torch.svd_lowrank(need_align.T @ reference, q = p)
 
         # Calculate the rotation matrix
-        procrustes_sol = LRsvd_ASE[2] @ LRsvd_ASE[0].T
+        align_mat = LRsvd_ASE[2] @ LRsvd_ASE[0].T
 
-        return(procrustes_sol.T)
+        return(align_mat.T)
     
     def align(self):
         need_align = self.embed_raw
-        procrustes_sol = self.procrustes_sol
+        align_mat = self.align_mat
 
-        aligned_ASE = need_align @ procrustes_sol
+        aligned_ASE = need_align @ align_mat
         last_dim = 1 - torch.sum(aligned_ASE, axis = 1).unsqueeze(1)
         aligned_ASE_full = torch.cat((aligned_ASE, last_dim), dim = 1)
         return(aligned_ASE_full)
@@ -59,7 +59,7 @@ class Oracle:
 
 class Op_Riemannian_GD:
     
-    def __init__(self, data, mode, initialization = False, softplus_parameter = 25, tolerance = 0.01):
+    def __init__(self, data, mode, initialization = None, softplus_parameter = 25, tolerance = 0.01):
 
         self.data = data
         self.tolerance = tolerance
@@ -69,6 +69,7 @@ class Op_Riemannian_GD:
         self.relu_loss = self.simplex_loss_relu(self.data)
         self.softplus_loss = self.simplex_loss_softplus(self.data, self.smoothing)
         self.align_mat = self.GD_Armijo()
+        self.aligned = self.aligned()
 
     def update_parameter(self, smoothing, tolerance):
 
@@ -167,7 +168,7 @@ class Op_Riemannian_GD:
         X = self.data
         n, p = X.shape
 
-        if type(self.initialization) == torch.tensor:
+        if self.initialization is not None:
             W = self.initialization
         else: 
             W = torch.eye(p)
@@ -202,4 +203,23 @@ class Op_Riemannian_GD:
             iter += 1
 
         return(W)
-            
+    
+    def aligned(self):
+        aligned_core = self.data @ self.align_mat
+        aligned_last = (1 - aligned_core.sum(dim = 1)).unsqueeze(dim = 1)
+        aligned = torch.cat([aligned_core, aligned_last], dim = 1)
+        return(aligned)
+
+        
+class No_Oracle:
+    def __init__(self, need_align_adj, embed_dim, initialization = None, softplus_parameter = 25, mode = "softplus", tol = 10e-2):
+        self.data = Oracle.ASE(need_align_adj, embed_dim)
+        self.align_mat = Op_Riemannian_GD(self.data, mode, initialization, softplus_parameter, tol).align_mat
+        self.align_permu = None
+        self.aligned = self.aligned()
+
+    def aligned(self):
+        aligned_core = self.data @ self.align_mat
+        aligned_last = (1 - aligned_core.sum(dim = 1)).unsqueeze(dim = 1)
+        aligned = torch.cat([aligned_core, aligned_last], dim = 1)
+        return(aligned)

@@ -6,6 +6,11 @@
 #########################################################################################################################################################################
 #########################################################################################################################################################################;
 import torch
+import pandas as pd
+from src import Dir_Reg
+from src import Simulation as sim
+from tqdm import tqdm as tm
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 """
 Solves the problem  min ||(A-XX^T)*M||_F^2 without any constraint on X,
@@ -83,3 +88,68 @@ def GD_RDPG(A,X, L, tol=1e-3):
     aligned_ASE_full = torch.cat((Xd, last_dim), dim = 1)
 
     return(aligned_ASE_full)
+
+
+
+def fix_nodes_n_iter(model, nodes, n_iter, constrained):
+
+    """ run the model with n nodes n_iter number of times, record the estimated beta and fisher's information """
+
+    model.update_settings(nodes = nodes)
+    
+    B = model.settings.B
+    beta = model.settings.beta
+
+    q, p = B.shape
+    constraint = Dir_Reg.fit.gen_constraint(p, True)
+
+    B_hat = torch.zeros(n_iter, q*p)
+
+    if constrained: 
+        qp = 4
+    else:
+        qp = q*p
+
+    fish_est = torch.zeros(n_iter, (qp)**2)
+
+    for i in tm(range(n_iter), desc = str(nodes)):
+
+        torch.manual_seed(i)
+        model.update_settings()
+        
+        Z0 = model.synth_data["lat_pos"][0,]
+        Z1 = model.synth_data["lat_pos"][1,]
+        Y0 = model.synth_data["obs_adj"][0,]
+        X0 = sim.ABC.gen_X(Y0, Z0, model.settings.K)
+
+        est = Dir_Reg.fit(predictor = X0, response = Z1, constrained = constrained, beta_guess = model.settings.beta)
+
+        B_hat[i,] = est.est_result["estimate"].reshape(-1)
+        fish_est[i,] = est.est_result["fisher_info"].reshape(-1)
+
+    def to_pd_df(n, mat, b_real, name):
+        """ so that the experiment result can live in the DLS data wonderland """
+        n_iter, qp = mat.shape
+        vec = mat.reshape(1, -1)
+        comp = torch.arange(1, qp+1).repeat(n_iter).unsqueeze(dim = 0)
+        seed_id = torch.arange(n_iter).repeat_interleave(qp).unsqueeze(dim = 0)
+        node_id = n * torch.ones(qp*n_iter).unsqueeze(dim = 0)
+        b_real_stack = torch.stack([b_real.reshape(-1)]* n_iter).reshape(1, -1)
+        b_df = torch.cat([seed_id, node_id, comp, vec, b_real_stack], dim = 0).T
+        b_df = pd.DataFrame(b_df)
+        b_df.columns = ["Seed", "Nodes", "Comp", name + "_hat", name + "_real"]
+        for column in b_df.columns:
+            if "_" not in column:
+                try:
+                    b_df[column] = b_df[column].astype(int)
+                except ValueError:
+                    pass
+
+        return(b_df)
+
+    B_df = to_pd_df(nodes, B_hat, B, "B")
+    beta_tilde = torch.linalg.solve(constraint.T @ constraint, constraint.T) @ B_hat.T
+    beta_df = to_pd_df(nodes, beta_tilde.T, beta, "beta")
+
+    result_dict = {"B_hat": B_df, "beta_tilde": beta_df, "fish_est": fish_est.mean(dim = 0).reshape(qp, qp)}
+    return(result_dict)
