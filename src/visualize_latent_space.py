@@ -1,13 +1,17 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
+from src import Simulation as sim
 
-def lat_vis(df, LB, col):
-    sns.scatterplot(x = df[:, 0], y = df[:, 1], s = 2, color = col)
+def lat_vis(df, K, LB, palette):
+    pd_df = sim.ABC_Monte_Carlo.lat_pos(df.unsqueeze(dim = 0), 3)
+    pal = sns.color_palette(palette, 3)
+    sns.scatterplot(pd_df, x = "dim_1", y = "dim_2", s = 2, hue = "group", palette=pal, legend = False)
+
     plt.xlim(LB, 1)
     plt.ylim(LB, 1)
-    plt.axvline(x=0, color = "red")
-    plt.axhline(y=0, color = "red")
-    plt.plot([0,1], [1,0], color = "red")
+    plt.axvline(x=0, alpha = 0.5)
+    plt.axhline(y=0, alpha = 0.5)
+    plt.plot([0,1], [1,0], alpha = 0.5)
     plt.gca().set_aspect('equal')
     # plt.savefig(fr"C:\Users\yangs\Desktop\making gif\scatterplot_{idx}.png")
     # plt.close()

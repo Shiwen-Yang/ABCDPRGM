@@ -10,7 +10,11 @@ import pandas as pd
 from torch.distributions import Dirichlet, Bernoulli, Uniform
 from src import Dir_Reg
 from src import Align
+
+from src import visualize_latent_space as vls #delete afterwards
+
 from tqdm import tqdm as tm
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class ABC:
@@ -173,9 +177,14 @@ class ABC_Monte_Carlo:
         T, n, p = synth_data.shape
         group_membership = torch.arange(K).repeat_interleave(int(n/K)).repeat(T).reshape(T, n, 1)
         time = torch.arange(T).repeat_interleave(n).reshape(T, n, 1)
-        new_tensor = torch.cat([time, group_membership, synth_data], dim = 2).reshape(-1, T * n, K + 2).squeeze(dim = 0)
-        new_df = pd.DataFrame(new_tensor, columns = ["time", "group", "dim_1", "dim_2", "dim_3"])
-        new_df = new_df.astype({"time": int, "group": int, "dim_1": float, "dim_2": float, "dim_3": float})
+        new_tensor = torch.cat([time, group_membership, synth_data], dim = 2).reshape(-1, T * n, p + 2).squeeze(dim = 0)
+
+        dim_col = ["dim_" + str(i) for i in range(1, p + 1)]
+        all_cols = ["time", "group"] + dim_col
+
+        new_df = pd.DataFrame(new_tensor)
+        new_df.columns = all_cols
+        new_df = new_df.astype({"time": int, "group": int})
         return(new_df)
     
     @staticmethod
@@ -250,14 +259,20 @@ class ABC_Monte_Carlo:
 
             if self.settings.NO:
                 Z0_no_oracle = Align.No_Oracle(Y0, (p-1)).aligned
-                init_guess = Align.Oracle(Z0_no_oracle, Y1, (p-1)).align_mat
-                Z1_no_oracle = Align.No_Oracle(Y1, (p-1), init_guess).aligned
+
+                # init_guess = Align.Oracle(Z0_no_oracle, Y1, (p-1)).align_mat
+                # Z1_no_oracle = Align.No_Oracle(Y1, (p-1), init_guess).aligned
+
+                Z1_no_oracle = Align.No_Oracle(Y1, (p-1)).aligned
+                vls.lat_vis(Z0_no_oracle, 3, -1, "Reds")
+                vls.lat_vis(Z1_no_oracle, 3, -1, "Greens")
                 X0_no_oracle = ABC.gen_X(Y0, Z0_no_oracle, model.settings.K)
 
                 est_no_oracle = Dir_Reg.fit(predictor = X0_no_oracle, 
                                             response = Z1_no_oracle, 
                                             constrained = constrained, 
                                             beta_guess = model.settings.beta)
+                print(est_no_oracle.est_result["estimate"])
                 est_NO = est_no_oracle.est_result["estimate"].reshape(-1)
                 fish_NO = est_no_oracle.est_result["fisher_info"].reshape(1, -1)
                 method_NO = torch.tensor([[0,0,1]])

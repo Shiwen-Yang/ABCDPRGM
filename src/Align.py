@@ -212,7 +212,7 @@ class Op_Riemannian_GD:
 
         
 class No_Oracle:
-    def __init__(self, need_align_adj, embed_dim, initialization = None, softplus_parameter = 25, mode = "softplus", tol = 10e-2):
+    def __init__(self, need_align_adj, embed_dim, initialization = None, softplus_parameter = 5, mode = "softplus", tol = 10e-2):
         self.data = Oracle.ASE(need_align_adj, embed_dim)
         self.align_mat = Op_Riemannian_GD(self.data, mode, initialization, softplus_parameter, tol).align_mat
         self.align_permu = None
