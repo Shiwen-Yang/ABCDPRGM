@@ -264,15 +264,14 @@ class ABC_Monte_Carlo:
                 # Z1_no_oracle = Align.No_Oracle(Y1, (p-1), init_guess).aligned
 
                 Z1_no_oracle = Align.No_Oracle(Y1, (p-1)).aligned
-                vls.lat_vis(Z0_no_oracle, 3, -1, "Reds")
-                vls.lat_vis(Z1_no_oracle, 3, -1, "Greens")
+
                 X0_no_oracle = ABC.gen_X(Y0, Z0_no_oracle, model.settings.K)
 
                 est_no_oracle = Dir_Reg.fit(predictor = X0_no_oracle, 
                                             response = Z1_no_oracle, 
                                             constrained = constrained, 
                                             beta_guess = model.settings.beta)
-                print(est_no_oracle.est_result["estimate"])
+
                 est_NO = est_no_oracle.est_result["estimate"].reshape(-1)
                 fish_NO = est_no_oracle.est_result["fisher_info"].reshape(1, -1)
                 method_NO = torch.tensor([[0,0,1]])
