@@ -21,18 +21,19 @@ class fit:
     
     """
 
-    def __init__(self, predictor, response, constrained = False, beta_guess = None, beta_0_guess = -10, tol = 10e-3):
+    def __init__(self, predictor, response, constrained = False, beta_guess = None, beta_0_guess = -10, tol = 10e-3, max_iter = 200):
         self.predictor = predictor
         self.response = response
-        self.settings = self.reg_settings(constrained, beta_guess, beta_0_guess, tol)
+        self.settings = self.reg_settings(constrained, beta_guess, beta_0_guess, tol, max_iter)
         self.est_result = self.Dir_NGD()
 
     class reg_settings:
-        def __init__(self, constrained, beta_guess, beta_0_guess, tol):
+        def __init__(self, constrained, beta_guess, beta_0_guess, tol, max_iter):
             self.constrained = constrained
             self.beta_guess = beta_guess
             self.beta_0_guess = beta_0_guess
             self.tol = tol
+            self.max_iter = max_iter
     
     def update_settings(self, constrained = None, beta_guess = None, beta_0_guess = None, tol = None):
 
@@ -289,6 +290,8 @@ class fit:
 
         return(fish)
     
+
+    
     def Dir_NGD(self):
         """ 
         Fisher's Scoring algorithm. When the step size exceeds the tolerance after 100 iterations, returns the 0 matrix.
@@ -320,6 +323,7 @@ class fit:
         next_estimate = init_est_mat
 
         go = True
+
         i = 1
         while go:
         
@@ -331,16 +335,18 @@ class fit:
             
             next_estimate = next_estimate + (constraint.matmul(step)).reshape(3*(p-1)+1, p)
 
-            go = (torch.norm(step, p = "fro") > self.settings.tol)
+            step_size_now = torch.norm(step, p = "fro")
             
+            go = step_size_now > self.settings.tol
+
             i += 1
-            if i > 100:
-                return(init_est_mat*0)
+            if i > self.settings.max_iter:
+                break
         
         
         next_estimate = next_estimate.to("cpu")
         current_fisher_info = current_fisher_info.to("cpu")
-        result_dic = {"estimate" : next_estimate, "fisher_info": current_fisher_info, "info_lost": (1 - n_new/n)}
+        result_dic = {"estimate" : next_estimate, "fisher_info": current_fisher_info, "info_lost": (1 - n_new/n), "num_iter": i - 1, "max_iter": self.settings.max_iter}
 
         del(current_gradient, current_fisher_info, step, next_estimate, B, constraint, init_est_vec)
         torch.cuda.empty_cache()

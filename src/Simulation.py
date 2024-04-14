@@ -232,7 +232,7 @@ class ABC_Monte_Carlo:
             Y0 = model.synth_data["obs_adj"][0,]
             Y1 = model.synth_data["obs_adj"][1,]
 
-            est_OL= est_OA = est_NO = fish_OL = fish_OA = fish_NO = None
+            OL_result = OA_result = NO_result = None
             method_OL= method_OA = method_NO = None
     
             if self.settings.OL:
@@ -241,8 +241,8 @@ class ABC_Monte_Carlo:
                                             response = Z1, 
                                             constrained = constrained, 
                                             beta_guess = model.settings.beta)
-                est_OL = est_ora_lat_pos.est_result["estimate"].reshape(-1)
-                fish_OL = est_ora_lat_pos.est_result["fisher_info"].reshape(1, -1)
+                
+                OL_result = est_ora_lat_pos.est_result
                 method_OL = torch.tensor([[1,0,0]])
 
             if self.settings.OA:
@@ -253,37 +253,36 @@ class ABC_Monte_Carlo:
                                             response = Z1_ora_align, 
                                             constrained = constrained, 
                                             beta_guess = model.settings.beta)
-                est_OA = est_ora_align.est_result["estimate"].reshape(-1)
-                fish_OA = est_ora_align.est_result["fisher_info"].reshape(1, -1)
+                OA_result = est_ora_align.est_result
                 method_OA = torch.tensor([[0,1,0]])
 
             if self.settings.NO:
                 Z0_no_oracle = Align.No_Oracle(Y0, (p-1)).aligned
-
-                # init_guess = Align.Oracle(Z0_no_oracle, Y1, (p-1)).align_mat
-                # Z1_no_oracle = Align.No_Oracle(Y1, (p-1), init_guess).aligned
-
                 Z1_no_oracle = Align.No_Oracle(Y1, (p-1)).aligned
-
                 X0_no_oracle = ABC.gen_X(Y0, Z0_no_oracle, model.settings.K)
-
                 est_no_oracle = Dir_Reg.fit(predictor = X0_no_oracle, 
                                             response = Z1_no_oracle, 
                                             constrained = constrained, 
-                                            beta_guess = model.settings.beta)
-
-                est_NO = est_no_oracle.est_result["estimate"].reshape(-1)
-                fish_NO = est_no_oracle.est_result["fisher_info"].reshape(1, -1)
+                                            beta_guess = None)
+                NO_result = est_no_oracle.est_result
                 method_NO = torch.tensor([[0,0,1]])
             
-            est_list = [est_OL, est_OA, est_NO]
-            est_to_concat = [item for item in est_list if item is not None]
-
             method_list = [method_OL, method_OA, method_NO]
             method_to_concat = [item for item in method_list if item is not None]
 
-            est = torch.cat(est_to_concat, dim = 0).unsqueeze(dim = 1)
+            est_list = [OL_result, OA_result, NO_result]
+            est_list = [item for item in est_list if item is not None]
 
+            est_to_concat = [item["estimate"].reshape(-1) for item in est_list]
+            fish_to_concat = [item["fisher_info"].reshape(1, -1) for item in est_list]
+            info_lost_list = [item["info_lost"] for item in est_list]
+            num_iter_list = [item["num_iter"] for item in est_list]
+
+            est = torch.cat(est_to_concat, dim = 0).unsqueeze(dim = 1)
+            
+            est_info = torch.kron(torch.tensor(info_lost_list), torch.ones(1, q*p)).reshape(-1, 1)
+            est_iter = torch.kron(torch.tensor(num_iter_list), torch.ones(1, q*p)).reshape(-1, 1)
+            est_max_iter = torch.ones(n_type * q * p, 1) * est_list[0]["max_iter"]
 
             method_core = torch.cat(method_to_concat, dim = 0)
             est_constrained = torch.tensor([constrained]).repeat(n_type * p * q).unsqueeze(dim = 1)
@@ -294,12 +293,10 @@ class ABC_Monte_Carlo:
             
             if seed is not None:
                 seed_list = torch.ones(n_type * q * p, 1) * seed
-                est_full = torch.cat([seed_list, est_nodes, est_constrained, est_method, est_component, est, real], dim = 1)
+                est_full = torch.cat([seed_list, est_nodes, est_constrained, est_method, est_component, est, real, est_info, est_iter, est_max_iter], dim = 1)
             else:
-                est_full = torch.cat([est_nodes, est_constrained, est_method, est_component, est, real], dim = 1)
+                est_full = torch.cat([est_nodes, est_constrained, est_method, est_component, est, real, est_info, est_iter, est_max_iter], dim = 1)
 
-            fish_list = [fish_OL, fish_OA, fish_NO]
-            fish_to_concat = [item for item in fish_list if item is not None]
             fish = torch.cat(fish_to_concat, dim = 0)
             fish_nodes = torch.ones(n_type, 1) * nodes
             fish_full = torch.cat([fish_nodes, method_core, fish], dim = 1)
@@ -334,13 +331,13 @@ class ABC_Monte_Carlo:
             est_result = torch.cat(est_result_list, dim = 0)
             if self.settings.seeded:
                 est_result = pd.DataFrame(est_result, 
-                                          columns = ["seed", "nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real"])
+                                          columns = ["seed", "nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real", "info_lost", "number_of_iterations", "max_iterations"])
             else:
                 est_result = pd.DataFrame(est_result, 
-                                          columns = ["nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real"])
+                                          columns = ["nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real", "info_lost", "number_of_iterations", "max_iterations"])
             
             for column in est_result.columns:
-                if not column.startswith('B_'):
+                if not (column.startswith('B_') or column.startswith("info_")):
                     est_result[column] = est_result[column].astype(int)
 
 
@@ -352,7 +349,7 @@ class ABC_Monte_Carlo:
             df_full = pd.DataFrame(fish_result.numpy(), columns=all_columns)
 
             for column in df_full.columns:
-                if not column.startswith('fisher_'):
+                if not column.startswith('fisher_') :
                     df_full[column] = df_full[column].astype(int)
 
             result = self.sim_result(est_result, df_full)

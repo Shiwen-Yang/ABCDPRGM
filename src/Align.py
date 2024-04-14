@@ -69,7 +69,6 @@ class Op_Riemannian_GD:
         self.relu_loss = self.simplex_loss_relu(self.data)
         self.softplus_loss = self.simplex_loss_softplus(self.data, self.smoothing)
         self.align_mat = self.GD_Armijo()
-        self.aligned = self.aligned()
 
     def update_parameter(self, smoothing, tolerance):
 
@@ -203,12 +202,7 @@ class Op_Riemannian_GD:
             iter += 1
 
         return(W)
-    
-    def aligned(self):
-        aligned_core = self.data @ self.align_mat
-        aligned_last = (1 - aligned_core.sum(dim = 1)).unsqueeze(dim = 1)
-        aligned = torch.cat([aligned_core, aligned_last], dim = 1)
-        return(aligned)
+
 
         
 class No_Oracle:
