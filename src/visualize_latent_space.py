@@ -2,10 +2,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from src import Simulation as sim
 
-def lat_vis(df, K, LB, palette):
+def lat_vis(df, K, LB):
     pd_df = sim.ABC_Monte_Carlo.lat_pos(df.unsqueeze(dim = 0), 3)
-    pal = sns.color_palette(palette, 3)
-    sns.scatterplot(pd_df, x = "dim_1", y = "dim_2", s = 2, hue = "group", palette=pal, legend = False)
+    sns.scatterplot(pd_df, x = "dim_1", y = "dim_2", s = 2, hue = "group", legend = False)
 
     plt.xlim(LB, 1)
     plt.ylim(LB, 1)

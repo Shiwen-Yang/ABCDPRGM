@@ -10,7 +10,7 @@ import pandas as pd
 from torch.distributions import Dirichlet, Bernoulli, Uniform
 from src import Dir_Reg
 from src import Align
-
+from src import ABC_Reg
 from src import visualize_latent_space as vls #delete afterwards
 
 from tqdm import tqdm as tm
@@ -227,44 +227,26 @@ class ABC_Monte_Carlo:
             model.update_settings(nodes = nodes)
             constrained = self.settings.constrained
 
-            Z0 = model.synth_data["lat_pos"][0,]
-            Z1 = model.synth_data["lat_pos"][1,]
-            Y0 = model.synth_data["obs_adj"][0,]
-            Y1 = model.synth_data["obs_adj"][1,]
+            data = ABC_Reg.est(embed_dimension = p - 1,
+                               two_lat_pos = model.synth_data["lat_pos"],
+                               two_adj_mat = model.synth_data["obs_adj"])
 
             OL_result = OA_result = NO_result = None
             method_OL= method_OA = method_NO = None
     
             if self.settings.OL:
-                X0_ora_lat_pos = ABC.gen_X(Y0, Z0, model.settings.K)
-                est_ora_lat_pos = Dir_Reg.fit(predictor = X0_ora_lat_pos, 
-                                            response = Z1, 
-                                            constrained = constrained, 
-                                            beta_guess = model.settings.beta)
-                
-                OL_result = est_ora_lat_pos.est_result
+                data.specify_mode("OL")
+                OL_result = data.fitted.est_result
                 method_OL = torch.tensor([[1,0,0]])
 
             if self.settings.OA:
-                Z0_ora_align = Align.Oracle(Z0, Y0, (p-1)).embed_aligned
-                Z1_ora_align = Align.Oracle(Z1, Y1, (p-1)).embed_aligned
-                X0_ora_align = ABC.gen_X(Y0, Z0_ora_align, model.settings.K)
-                est_ora_align = Dir_Reg.fit(predictor = X0_ora_align, 
-                                            response = Z1_ora_align, 
-                                            constrained = constrained, 
-                                            beta_guess = model.settings.beta)
-                OA_result = est_ora_align.est_result
+                data.specify_mode("OA")
+                OA_result = data.fitted.est_result
                 method_OA = torch.tensor([[0,1,0]])
 
             if self.settings.NO:
-                Z0_no_oracle = Align.No_Oracle(Y0, (p-1)).aligned
-                Z1_no_oracle = Align.No_Oracle(Y1, (p-1)).aligned
-                X0_no_oracle = ABC.gen_X(Y0, Z0_no_oracle, model.settings.K)
-                est_no_oracle = Dir_Reg.fit(predictor = X0_no_oracle, 
-                                            response = Z1_no_oracle, 
-                                            constrained = constrained, 
-                                            beta_guess = None)
-                NO_result = est_no_oracle.est_result
+                data.specify_mode("NO")
+                NO_result = data.fitted.est_result
                 method_NO = torch.tensor([[0,0,1]])
             
             method_list = [method_OL, method_OA, method_NO]

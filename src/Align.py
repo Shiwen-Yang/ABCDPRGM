@@ -49,6 +49,7 @@ class Oracle:
 
 
 
+
 #########################################################################################################################################################################
 #########################################################################################################################################################################
 #########################################################################################################################################################################
@@ -59,7 +60,7 @@ class Oracle:
 
 class Op_Riemannian_GD:
     
-    def __init__(self, data, mode, initialization = None, softplus_parameter = 25, tolerance = 0.01):
+    def __init__(self, data, initialization = None, mode = "softplus", softplus_parameter = 5, tolerance = 0.01):
 
         self.data = data
         self.tolerance = tolerance
@@ -70,10 +71,14 @@ class Op_Riemannian_GD:
         self.softplus_loss = self.simplex_loss_softplus(self.data, self.smoothing)
         self.align_mat = self.GD_Armijo()
 
-    def update_parameter(self, smoothing, tolerance):
-
-        self.smoothing = smoothing
-        self.tolerance = tolerance
+    def update(self, mode = None, smoothing = None, tolerance = None):
+        if mode is not None:
+            self.mode = mode
+        if smoothing is not None:
+            self.smoothing = smoothing
+        if tolerance is not None:
+            self.tolerance = tolerance
+        self.align_mat = self.GD_Armijo
 
     @staticmethod
     def simplex_loss_relu(data_set):
@@ -203,17 +208,5 @@ class Op_Riemannian_GD:
 
         return(W)
 
-
         
-class No_Oracle:
-    def __init__(self, need_align_adj, embed_dim, initialization = None, softplus_parameter = 5, mode = "softplus", tol = 10e-2):
-        self.data = Oracle.ASE(need_align_adj, embed_dim)
-        self.align_mat = Op_Riemannian_GD(self.data, mode, initialization, softplus_parameter, tol).align_mat
-        self.align_permu = None
-        self.aligned = self.aligned()
 
-    def aligned(self):
-        aligned_core = self.data @ self.align_mat
-        aligned_last = (1 - aligned_core.sum(dim = 1)).unsqueeze(dim = 1)
-        aligned = torch.cat([aligned_core, aligned_last], dim = 1)
-        return(aligned)

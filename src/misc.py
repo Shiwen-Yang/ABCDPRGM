@@ -10,6 +10,7 @@ import pandas as pd
 from src import Dir_Reg
 from src import Simulation as sim
 from tqdm import tqdm as tm
+from functools import partial
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 """
@@ -153,3 +154,298 @@ def fix_nodes_n_iter(model, nodes, n_iter, constrained):
 
     result_dict = {"B_hat": B_df, "beta_tilde": beta_df, "fish_est": fish_est.mean(dim = 0).reshape(qp, qp)}
     return(result_dict)
+
+
+
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+#Riemannian Gradient Descent on O(p)
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+
+class Op_Riemannian_GD:
+    
+    def __init__(self, data, mode, initialization = None, softplus_parameter = 25, tolerance = 0.01):
+
+        self.data = data
+        self.tolerance = tolerance
+        self.mode = mode
+        self.initialization = initialization
+        self.smoothing = softplus_parameter
+        self.relu_loss = self.simplex_loss_relu(self.data)
+        self.softplus_loss = self.simplex_loss_softplus(self.data, self.smoothing)
+        self.align_mat = self.GD_Armijo()
+
+    def update_parameter(self, smoothing, tolerance):
+
+        self.smoothing = smoothing
+        self.tolerance = tolerance
+
+    @staticmethod
+    def simplex_loss_relu(data_set):
+
+        X = data_set
+        relu = torch.nn.ReLU()
+
+        negativity_loss = torch.sum(relu(-X))
+
+        row_sum_minus_1 = torch.sum(X, dim = 1) - 1
+        simp_loss = torch.sum(relu(row_sum_minus_1))
+
+        return(negativity_loss + simp_loss)
+    
+    @staticmethod
+    def simplex_loss_softplus(data_set, smoothing):
+
+        X = data_set
+        mu = smoothing
+
+        softplus = torch.nn.Softplus(beta = mu)
+
+        negativity_loss = torch.sum(softplus(-X))
+
+        row_sum_minus_1 = torch.sum(X, dim = 1) - 1
+        simp_loss = torch.sum(softplus(row_sum_minus_1))
+
+        return(negativity_loss + simp_loss)
+    
+    def deriv_W_relu(self, W):
+
+        X = self.data
+        n, p = X.shape
+
+        signs_1 = (-X @ W > 0) * 1.
+        deriv_neg = -X.T @ torch.relu(signs_1)
+
+        sign_2 = ((torch.sum(X @ W,  dim = 1) - 1) > 0) * 1.
+        deriv_simp = X.T @ torch.relu(sign_2.unsqueeze(dim = 1)) @ torch.ones((1,p))
+
+        return(deriv_neg + deriv_simp)
+    
+    def deriv_W_softplus(self, W):
+
+        X = self.data
+        n, p = X.shape
+        
+        mu = self.smoothing
+
+        T0 = torch.exp(-mu* X @ W)
+        deriv_neg = -X.T @ (T0/(1 + T0))
+
+        row_sum_minus_1 = torch.sum(X @ W, dim = 1) - 1
+
+        T1 = torch.exp(mu * row_sum_minus_1.unsqueeze(dim = 1))
+        deriv_simp = X.T @ (T1/(1 + T1)) @ torch.ones((1, p))
+
+        return(deriv_neg + deriv_simp)
+    
+    def proj_skew_sym_at_W(self, M, W):
+
+        projection = W @ (W.T @ M - M.T @ W)/2
+
+        return(projection)
+
+    def matrix_exp_at_W(self, xi, W):
+
+        Exp_w_xi = W @ torch.matrix_exp(W.T @ xi)
+
+        return(Exp_w_xi)
+    
+    def GD_one_step(self, prev_position, step):
+        
+        W_old = prev_position
+
+        W_old = W_old * torch.sqrt(1/(W_old @ W_old.T)[0,0])
+        
+        if self.mode == "relu":
+            euclid_deriv = self.deriv_W_relu(W_old)
+        else:
+            euclid_deriv = self.deriv_W_softplus(W_old)
+        
+        tangent_deriv = self.proj_skew_sym_at_W(euclid_deriv, W_old)
+
+        W_new = self.matrix_exp_at_W(-step*tangent_deriv, W_old)
+        
+        return(W_new)
+    
+    def GD_Armijo(self):
+
+        X = self.data
+        n, p = X.shape
+
+        if self.initialization is not None:
+            W = self.initialization
+        else: 
+            W = torch.eye(p)
+
+        if self.mode == "relu":
+            grad = self.deriv_W_relu
+            cost = self.simplex_loss_relu
+        else:
+            grad = self.deriv_W_softplus
+            cost = partial(self.simplex_loss_softplus, smoothing = self.smoothing)
+        
+        b = 0.1; sigma = 0.1
+        max_iter = 200 * p
+
+        iter = 1
+        go = True
+        while go:
+            
+            t = 0.001
+            k = 1
+            while (cost(X @ self.GD_one_step(W, t)) > cost(X @ W) - sigma * t * torch.norm(grad(W))):
+                t = t * (b**k)
+                k += 1
+                if k > 10:
+                    break
+
+
+            W = self.GD_one_step(W, t)
+            jump = sigma * t * torch.norm(grad(W))
+
+            go = (torch.norm(grad(W)) > self.tolerance) & (jump > 10e-8) & (iter < max_iter)
+            iter += 1
+
+        return(W)
+    
+
+
+class Op_Riemannian_GD:
+    
+    def __init__(self, data, reference = None, softplus_parameter = 5, tolerance = 0.01):
+
+        self.data = data
+        self.reference = reference
+        self.smoothing = softplus_parameter
+        self.tolerance = tolerance
+        self.align_mat = self.GD_Armijo()
+
+    
+    @staticmethod
+    def simplex_loss_softplus(W, data_set, smoothing, reference):
+        n, p = data_set.shape
+        X = data_set @ W
+        mu = smoothing
+
+        softplus = torch.nn.Softplus(beta = mu)
+
+        negativity_loss = torch.sum(softplus(-X))
+
+        row_sum_minus_1 = torch.sum(X, dim = 1) - 1
+        simp_loss = torch.sum(softplus(row_sum_minus_1))
+
+        if reference is not None:
+            off_target_loss = torch.norm(X - reference, p = "fro")
+            result = negativity_loss + simp_loss + off_target_loss
+            print(negativity_loss, simp_loss, off_target_loss)
+
+        else: 
+            result = negativity_loss + simp_loss
+
+        return(result)
+    
+    def deriv_W_softplus(self, W):
+
+        X = self.data
+        n, p = X.shape
+        R = self.reference
+        mu = self.smoothing
+
+        T0 = torch.exp(-mu* X @ W)
+        deriv_neg = -X.T @ (T0/(1 + T0))
+
+        row_sum_minus_1 = torch.sum(X @ W, dim = 1) - 1
+
+        T1 = torch.exp(mu * row_sum_minus_1.unsqueeze(dim = 1))
+        deriv_simp = X.T @ (T1/(1 + T1)) @ torch.ones((1, p))
+
+        if self.reference is not None:
+            T2 = X @ W - R
+            deriv_off_target = (1/torch.norm(T2, p = "fro")) * X.T @ T2
+            result = deriv_neg + deriv_simp + 10 * deriv_off_target
+
+        else:
+            result = deriv_neg + deriv_simp
+
+        return(result)
+
+    def proj_skew_sym_at_W(self, M, W):
+
+        projection = W @ (W.T @ M - M.T @ W)/2
+
+        return(projection)
+
+    def matrix_exp_at_W(self, xi, W):
+
+        Exp_w_xi = W @ torch.matrix_exp(W.T @ xi)
+
+        return(Exp_w_xi)
+    
+    def GD_one_step(self, prev_position, step):
+        
+        W_old = prev_position
+
+        #rescale W_old so that W^TW = WW^T = I_p.
+        #without this, the product slowly deviates from I_p due to numeric reasons.
+        W_old = W_old * torch.sqrt(1/(W_old @ W_old.T)[0,0])
+        
+        euclid_deriv = self.deriv_W_softplus(W_old)
+
+        tangent_deriv = self.proj_skew_sym_at_W(euclid_deriv, W_old)
+
+        W_new = self.matrix_exp_at_W(-step*tangent_deriv, W_old)
+
+        return(W_new)
+    
+    def GD_Armijo(self):
+
+        X = self.data
+        n, p = X.shape
+
+        W = torch.eye(p)
+
+        grad = self.deriv_W_softplus
+        cost = partial(self.simplex_loss_softplus, smoothing = self.smoothing, reference = self.reference)
+        
+        b = 0.1; sigma = 0.1
+        max_iter = 200 * p
+
+        iter = 1
+        go = True
+        while go:
+            
+            t = 0.001
+            k = 1
+            next_cost = cost(self.GD_one_step(W, t), X)
+            current_cost = cost(W, X)
+            while (next_cost > current_cost - sigma * t * torch.norm(grad(W))):
+
+                t = t * (b**k)
+                k += 1
+                if k > 10:
+                    break
+
+          
+            W = self.GD_one_step(W, t)
+            jump = sigma * t * torch.norm(grad(W))
+
+            go = (torch.norm(grad(W)) > self.tolerance) & (jump > 10e-8) & (iter < max_iter)
+            iter += 1
+
+        return(W)
+    
+
+class No_Oracle:
+    def __init__(self, need_align_adj, embed_dim, reference = None, softplus_parameter = 5, tol = 10e-2):
+        self.data = Oracle.ASE(need_align_adj, embed_dim)
+        self.align_mat = Op_Riemannian_GD(self.data, reference, softplus_parameter, tol).align_mat
+        self.aligned = self.aligned()
+
+    def aligned(self):
+        aligned_core = self.data @ self.align_mat
+        aligned_last = (1 - aligned_core.sum(dim = 1)).unsqueeze(dim = 1)
+        aligned = torch.cat([aligned_core, aligned_last], dim = 1)
+        return(aligned)
