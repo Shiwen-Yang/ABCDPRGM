@@ -189,7 +189,7 @@ class ABC_Monte_Carlo:
     
     @staticmethod
     class consistency_T2:
-        """ keep no_oracle False for now... RGD fucks up the permutation bad, need to minimize wrt permuation in addition """
+        """ no_oracle should be aight now"""
         def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, seeded = True, constrained = False, oracle_lat_pos = True, oracle_align = False, no_oracle = False):
             self.settings = self.settings(number_of_iterations, nodes_set, beta, alpha_0, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle)
             self.MC_result = self.many_rounds()
@@ -199,7 +199,7 @@ class ABC_Monte_Carlo:
             def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle):
                 self.n_iter = number_of_iterations
                 self.n_set = nodes_set
-                self.beta = beta
+                self.beta = torch.tensor(beta, )
                 self.alpha_0 = alpha_0
                 self.seeded = seeded
                 self.constrained = constrained
@@ -229,7 +229,8 @@ class ABC_Monte_Carlo:
 
             data = ABC_Reg.est(embed_dimension = p - 1,
                                two_lat_pos = model.synth_data["lat_pos"],
-                               two_adj_mat = model.synth_data["obs_adj"])
+                               two_adj_mat = model.synth_data["obs_adj"],
+                               beta_guess = self.settings.init_model.settings.beta)
 
             OL_result = OA_result = NO_result = None
             method_OL= method_OA = method_NO = None
