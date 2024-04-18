@@ -10,14 +10,15 @@ class est:
         self.settings = self.settings(embed_dimension, groups, constrained, beta_guess, beta_0_guess, max_iter_est,
                                       RGD_mode, RGD_softplus_parameter, tol_est, tol_RGD)
 
-        self.data_raw = self.data_raw(two_lat_pos, two_adj_mat, embed_dimension)
+        self.raw_data = self.data_raw(two_lat_pos, two_adj_mat, embed_dimension)
         self.data = None
         self.fitted = None
 
-    def specify_mode(self, new_mode):
+    def specify_mode(self, new_mode, fit = True):
         self.settings.EST.specify_mode(new_mode)
         self.data = self.process(self.settings.EST.mode)
-        self.fitted = self.fit()
+        if fit:
+            self.fitted = self.fit()
 
     class settings:
         def __init__(self, embed_dimension, groups, constrained, beta_guess, beta_0_guess, max_iter_est, 
@@ -47,7 +48,7 @@ class est:
     
     class data_raw:
         def __init__(self, two_lat_pos, two_adj_mat, embed_dim):
-            if two_adj_mat is not None:
+            if two_lat_pos is not None:
                 self.Z0 = two_lat_pos[0,]
                 self.Z1 = two_lat_pos[1,]
             else:
@@ -78,34 +79,34 @@ class est:
 
     def process(self, mode):
         if mode == "OL":
-            predictor_Z = self.data_raw.Z0
-            response = self.data_raw.Z1
+            predictor_Z = self.raw_data.Z0
+            response = self.raw_data.Z1
 
         if mode == "OA":
-            predictor_Z = Align.Oracle(self.data_raw.Z0, self.data_raw.Y0, self.settings.EST.embed_dim).embed_aligned
-            response = Align.Oracle(self.data_raw.Z1, self.data_raw.Y1, self.settings.EST.embed_dim).embed_aligned
+            predictor_Z = Align.Oracle(self.raw_data.Z0, self.raw_data.Y0, self.settings.EST.embed_dim).embed_aligned
+            response = Align.Oracle(self.raw_data.Z1, self.raw_data.Y1, self.settings.EST.embed_dim).embed_aligned
 
         if mode == "NO":
 
-            n, p = self.data_raw.Z0_ASE.shape
-            Z0_NO_align_mat = Align.Op_Riemannian_GD(data = self.data_raw.Z0_ASE[:,:(p-1)], 
+            n, p = self.raw_data.Z0_ASE.shape
+            Z0_NO_align_mat = Align.Op_Riemannian_GD(data = self.raw_data.Z0_ASE[:,:(p-1)], 
                                                     initialization = None, 
                                                     mode = self.settings.RGD.mode, 
                                                     softplus_parameter = self.settings.RGD.softplus_beta, 
                                                     tolerance = self.settings.RGD.tol).align_mat
-            Z0_NO = est.mult_W(self.data_raw.Z0_ASE, Z0_NO_align_mat)
+            Z0_NO = est.mult_W(self.raw_data.Z0_ASE, Z0_NO_align_mat)
 
-            Z1_NO_init = Align.Oracle.ortho_proc(Z0_NO[:,:(p-1)], self.data_raw.Z1_ASE[:,:(p-1)])
-            Z1_NO_align_mat = Align.Op_Riemannian_GD(data = self.data_raw.Z1_ASE[:,:(p-1)], 
+            Z1_NO_init = Align.Oracle.ortho_proc(Z0_NO[:,:(p-1)], self.raw_data.Z1_ASE[:,:(p-1)])
+            Z1_NO_align_mat = Align.Op_Riemannian_GD(data = self.raw_data.Z1_ASE[:,:(p-1)], 
                                                     initialization = Z1_NO_init, 
                                                     mode = self.settings.RGD.mode, 
                                                     softplus_parameter = self.settings.RGD.softplus_beta, 
                                                     tolerance = self.settings.RGD.tol).align_mat
-            Z1_NO = est.mult_W(self.data_raw.Z1_ASE, Z1_NO_align_mat)
+            Z1_NO = est.mult_W(self.raw_data.Z1_ASE, Z1_NO_align_mat)
             
             predictor_Z, response = Z0_NO, Z1_NO
 
-        predictor = sim.ABC.gen_X(self.data_raw.Y0, predictor_Z, self.settings.EST.K)
+        predictor = sim.ABC.gen_X(self.raw_data.Y0, predictor_Z, self.settings.EST.K)
 
         
         return({"predictor": predictor, "response": response})

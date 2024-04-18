@@ -187,6 +187,30 @@ class ABC_Monte_Carlo:
         new_df = new_df.astype({"time": int, "group": int})
         return(new_df)
     
+    @staticmethod 
+    class check_lat_pos:
+        def __init__(self, model, n):
+            model.update_settings(nodes = n)
+            p = model.settings.p 
+            model_est = ABC_Reg.est(embed_dimension = p-1, 
+                                    two_lat_pos = model.synth_data["lat_pos"], 
+                                    two_adj_mat = model.synth_data["obs_adj"])
+            
+            model_est.specify_mode("OA", False)
+            ASE_aligned_lat_pos_0 = model_est.data["predictor"][:,:(p-1)].unsqueeze(dim = 0)
+            ASE_aligned_lat_pos_1 = model_est.data["response"][:,:(p-1)].unsqueeze(dim = 0)
+
+            model_est.specify_mode("NO", False)
+            RGD_aligned_lat_pos_0 = model_est.data["predictor"][:,:(p-1)].unsqueeze(dim = 0)
+            RGD_aligned_lat_pos_1 = model_est.data["response"][:,:(p-1)].unsqueeze(dim = 0)
+
+            self.truth = model.synth_data["lat_pos"][:,:,:(p-1)]
+            self.ASE = torch.cat([model_est.raw_data.Z0_ASE[:,:(p-1)].unsqueeze(dim = 0),
+                                  model_est.raw_data.Z1_ASE[:,:(p-1)].unsqueeze(dim = 0)], dim = 0)
+            self.ASE_aligned = torch.cat([ASE_aligned_lat_pos_0, ASE_aligned_lat_pos_1], dim = 0)
+            self.RGD_aligned = torch.cat([RGD_aligned_lat_pos_0, RGD_aligned_lat_pos_1], dim = 0)
+
+    
     @staticmethod
     class consistency_T2:
         """ no_oracle should be aight now"""
@@ -338,3 +362,4 @@ class ABC_Monte_Carlo:
             result = self.sim_result(est_result, df_full)
 
             return(result)
+        
