@@ -7,7 +7,8 @@
 #########################################################################################################################################################################
 import torch
 import pandas as pd
-from torch.distributions import Dirichlet, Bernoulli, Uniform
+from torch.distributions import Dirichlet, Bernoulli
+from time import time
 from src import Dir_Reg
 from src import Align
 from src import ABC_Reg
@@ -170,7 +171,6 @@ class ABC_Monte_Carlo:
     def __init__(self) -> None:
         pass
 
-    
     @staticmethod
     def lat_pos(synth_data, K_groups):
         K = K_groups
@@ -214,17 +214,18 @@ class ABC_Monte_Carlo:
     @staticmethod
     class consistency_T2:
         """ no_oracle should be aight now"""
-        def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, seeded = True, constrained = False, oracle_lat_pos = True, oracle_align = False, no_oracle = False):
-            self.settings = self.settings(number_of_iterations, nodes_set, beta, alpha_0, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle)
+        def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, oracle_guess = True, seeded = True, constrained = False, oracle_lat_pos = True, oracle_align = False, no_oracle = False):
+            self.settings = self.settings(number_of_iterations, nodes_set, beta, alpha_0, oracle_guess, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle)
             self.MC_result = self.many_rounds()
 
 
         class settings:
-            def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle):
+            def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, oracle_guess, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle):
                 self.n_iter = number_of_iterations
                 self.n_set = nodes_set
-                self.beta = torch.tensor(beta, )
+                self.beta = torch.tensor(beta)
                 self.alpha_0 = alpha_0
+                self.oracle_guess = oracle_guess
                 self.seeded = seeded
                 self.constrained = constrained
                 self.OL = oracle_lat_pos
@@ -250,15 +251,20 @@ class ABC_Monte_Carlo:
             model = self.settings.init_model
             model.update_settings(nodes = nodes)
             constrained = self.settings.constrained
-
+            
+            if self.settings.oracle_guess:
+                beta_guess = self.settings.init_model.settings.beta
+            else:
+                beta_guess = None
+            
             data = ABC_Reg.est(embed_dimension = p - 1,
                                two_lat_pos = model.synth_data["lat_pos"],
                                two_adj_mat = model.synth_data["obs_adj"],
-                               beta_guess = self.settings.init_model.settings.beta)
+                               beta_guess = beta_guess)
 
             OL_result = OA_result = NO_result = None
             method_OL= method_OA = method_NO = None
-    
+
             if self.settings.OL:
                 data.specify_mode("OL")
                 OL_result = data.fitted.est_result
@@ -273,7 +279,7 @@ class ABC_Monte_Carlo:
                 data.specify_mode("NO")
                 NO_result = data.fitted.est_result
                 method_NO = torch.tensor([[0,0,1]])
-            
+                
             method_list = [method_OL, method_OA, method_NO]
             method_to_concat = [item for item in method_list if item is not None]
 
@@ -284,11 +290,13 @@ class ABC_Monte_Carlo:
             fish_to_concat = [item["fisher_info"].reshape(1, -1) for item in est_list]
             info_lost_list = [item["info_lost"] for item in est_list]
             num_iter_list = [item["num_iter"] for item in est_list]
+            time_list = [item["time_elapsed"] for item in est_list]
 
             est = torch.cat(est_to_concat, dim = 0).unsqueeze(dim = 1)
             
             est_info = torch.kron(torch.tensor(info_lost_list), torch.ones(1, q*p)).reshape(-1, 1)
             est_iter = torch.kron(torch.tensor(num_iter_list), torch.ones(1, q*p)).reshape(-1, 1)
+            est_time = torch.kron(torch.tensor(time_list), torch.ones(1, q*p)).reshape(-1, 1)
             est_max_iter = torch.ones(n_type * q * p, 1) * est_list[0]["max_iter"]
 
             method_core = torch.cat(method_to_concat, dim = 0)
@@ -300,9 +308,9 @@ class ABC_Monte_Carlo:
             
             if seed is not None:
                 seed_list = torch.ones(n_type * q * p, 1) * seed
-                est_full = torch.cat([seed_list, est_nodes, est_constrained, est_method, est_component, est, real, est_info, est_iter, est_max_iter], dim = 1)
+                est_full = torch.cat([seed_list, est_nodes, est_constrained, est_method, est_component, est, real, est_info, est_iter, est_max_iter, est_time], dim = 1)
             else:
-                est_full = torch.cat([est_nodes, est_constrained, est_method, est_component, est, real, est_info, est_iter, est_max_iter], dim = 1)
+                est_full = torch.cat([est_nodes, est_constrained, est_method, est_component, est, real, est_info, est_iter, est_max_iter, est_time], dim = 1)
 
             fish = torch.cat(fish_to_concat, dim = 0)
             fish_nodes = torch.ones(n_type, 1) * nodes
@@ -338,13 +346,13 @@ class ABC_Monte_Carlo:
             est_result = torch.cat(est_result_list, dim = 0)
             if self.settings.seeded:
                 est_result = pd.DataFrame(est_result, 
-                                          columns = ["seed", "nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real", "info_lost", "number_of_iterations", "max_iterations"])
+                                          columns = ["seed", "nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real", "info_lost", "number_of_iterations", "max_iterations", "time_elapsed"])
             else:
                 est_result = pd.DataFrame(est_result, 
-                                          columns = ["nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real", "info_lost", "number_of_iterations", "max_iterations"])
+                                          columns = ["nodes", "constrained", "method_OL", "method_OA", "method_NO", "component", "B_est", "B_real", "info_lost", "number_of_iterations", "max_iterations", "time_elapsed"])
             
             for column in est_result.columns:
-                if not (column.startswith('B_') or column.startswith("info_")):
+                if not (column.startswith('B_') or column.startswith("info_") or column.startswith("time_")):
                     est_result[column] = est_result[column].astype(int)
 
 

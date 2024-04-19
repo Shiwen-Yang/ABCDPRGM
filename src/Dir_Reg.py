@@ -1,4 +1,5 @@
 import torch
+from time import time
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 device = torch.device("mps") if torch.backends.mps.is_available() else device
 
@@ -301,7 +302,7 @@ class fit:
             fisher_info (torch.Tensor of shape 4 by 4 or (3p-2)p by (3p-2)p): The Fisher's Info of the MLE of the model parameters.
             info_lost (float): percentage of rows in design matrix and response that contains negative entries
         """
-
+        start_time = time()
         constrained = self.settings.constrained
         predictor, response = self.predictor, self.response
 
@@ -346,7 +347,13 @@ class fit:
         
         next_estimate = next_estimate.to("cpu")
         current_fisher_info = current_fisher_info.to("cpu")
-        result_dic = {"estimate" : next_estimate, "fisher_info": current_fisher_info, "info_lost": (1 - n_new/n), "num_iter": i - 1, "max_iter": self.settings.max_iter}
+        end_time = time()
+        result_dic = {"estimate" : next_estimate, 
+                      "fisher_info": current_fisher_info, 
+                      "info_lost": (1 - n_new/n), 
+                      "num_iter": i - 1, 
+                      "max_iter": self.settings.max_iter,
+                      "time_elapsed": end_time - start_time}
 
         del(current_gradient, current_fisher_info, step, next_estimate, B, constraint, init_est_vec)
         torch.cuda.empty_cache()
