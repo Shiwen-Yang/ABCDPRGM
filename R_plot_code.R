@@ -2,6 +2,8 @@ library(tidyverse)
 Oracle_performance = read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/est_lat_pos/example_1/convergence/oracle_performance.csv")
 RGD_performance = read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/est_lat_pos/example_1/convergence/RGD_performance.csv")
 
+# Comparing Alignment: Oracle vs. RGD -------------------------------------
+
 n = nrow(Oracle_performance)
 df_performance = rbind(Oracle_performance, RGD_performance)
 df_performance <- df_performance %>%
@@ -15,6 +17,11 @@ df_performance %>% ggplot() +
   geom_point(aes(x = nodes, y = Error, color = Time)) + 
   facet_wrap(~method, scale = "free")
 
+
+
+
+
+# Comparing Alignment Method ----------------------------------------------
 
 path_ASE_aligned <- "/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/est_lat_pos/example_1/estimate_lat_pos/ASE_aligned_lat_pos.csv"
 path_ASE <- "/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/est_lat_pos/example_1/estimate_lat_pos/ASE_lat_pos.csv"
