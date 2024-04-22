@@ -1,5 +1,7 @@
 library(tidyverse)
 library(cowplot)
+library(latex2exp)
+library(ggh4x)
 Oracle_performance = read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/est_lat_pos/example_1/convergence/oracle_performance.csv")
 RGD_performance = read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/est_lat_pos/example_1/convergence/RGD_performance.csv")
 
@@ -22,7 +24,7 @@ df_performance %>%
   ggplot(aes(x = nodes, y = Error, color = Time, shape = method)) +
   geom_point(size = 6) +
   labs(
-    title = "Align: Oracle vs. RGD -- Example 1",
+    title = "Align Error: Oracle vs. RGD -- Example 1",
     x = "Nodes",
     y = "Error",
     color = "Time",
@@ -62,13 +64,29 @@ all_lat_pos %>%
   filter(time == 0) %>%
   ggplot()+
   geom_point(aes(x = dim_1, y = dim_2, color = group), size = 0.1) +
-  facet_wrap(~method, scale = "free")
+  facet_wrap(~method, scale = "free")+
+  labs(
+    title = "Align Overview: Example 1",
+    x = "Dimension 1",
+    y = "Dimension 2",
+    color = "Group"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
 
-all_lat_pos %>% 
-  filter(time == 1) %>%
-  ggplot()+
-  geom_point(aes(x = dim_1, y = dim_2, color = group), size = 0.1) +
-  facet_wrap(~method, scale = "free")
+
+# all_lat_pos %>% 
+#   filter(time == 1) %>%
+#   ggplot()+
+#   geom_point(aes(x = dim_1, y = dim_2, color = group), size = 0.1) +
+#   facet_wrap(~method, scale = "free")
   
 
 
@@ -94,13 +112,14 @@ consistency_both <- bind_rows(consistency_linreg, consistency_oracle) %>%
                names_prefix = "method_",
                values_to = "value") %>%
   filter(value == 1) %>%
-  select(-value)
+  select(-value) %>%
+  filter(number_of_iterations != max_iterations)
 
 comparison_summary <- consistency_both %>% 
   group_by(nodes, seed, init, method) %>%
   reframe(C_B_est = c(H %*% B_est),
           C_B_real = c(H %*% B_real),
-          component = 1:4,
+          component =  paste0("beta", 1:4),
           info_lost = mean(info_lost),
           time_elapsed = mean(time_elapsed),
           max_iterations = mean(max_iterations)) %>%
@@ -115,20 +134,58 @@ comparison_summary <- consistency_both %>%
             mean_time_elapsed = mean(time_elapsed),
             sd_time_elapsed = sd(time_elapsed))
 
+
+my_labeller <- as_labeller(c("beta1" ="\U03B2[1]", "beta2" ="\U03B2[2]", "beta3" ="\U03B2[3]","beta4" ="\U03B2[4]"),
+            default = label_parsed)
 comparison_summary %>% 
   ggplot(aes(x = nodes, y = bias, ymin = bias - 2 * sd_error, ymax = bias + 2 * sd_error, color = method, shape = init)) +
   geom_pointrange(size = 1, position = position_dodge(width =  450)) +
-  facet_wrap(~component, scale = "free")
+  facet_wrap(~component, scales = "free", 
+             labeller = my_labeller) +
+  labs(
+    title = paste0("Comparing Estimates from Different Initialization: ", "Bias", " \U00B1 ", "2 SE" ),
+    x = "Nodes",
+    y = "Bias",
+    color = "Method",
+    shape = "Initialization"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
+
+
 
 comparison_summary %>%
-  ggplot(aes(x = nodes, y = mean_time_elapsed, ymin = mean_time_elapsed - 2 * sd_time_elapsed, ymax = mean_time_elapsed + 2 * sd_time_elapsed,color = method, shape = init)) + 
-  geom_pointrange(position = position_dodge(width = 200), size = 1)
+  ggplot(aes(x = nodes, y = mean_time_elapsed, ymin = mean_time_elapsed - 2 * sd_time_elapsed, ymax = mean_time_elapsed + 2 * sd_time_elapsed,color = init, shape = method)) + 
+  geom_pointrange(position = position_dodge(width = 200), size = 1)+
+  labs(
+    title = "Comparing Run Time When Using Different Initialization",
+    x = "Nodes",
+    y = "Time: Seconds",
+    color = "Initialization",
+    shape = "Method"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
 
 
 # Empirical Variance vs. Theoretical Variance -----------------------------
 
-path_B_est <- "/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/theo_var_vs_emp_var/B_oracle.csv"
-B_est <- read.csv(path_B_est)
+path_B_est <- "/Users/shiwen/Desktop/ABC data sets/consistency/est_all.csv"
+B_est <- read.csv(path_B_est) %>% na.omit() %>% as_tibble() %>% filter(number_of_iterations != max_iterations)
 constraint <- c(1.,  0.,  0.,  0.,  0.,  0.,  0.,  0., -1., -0., -0.,  0.,  0.,  0.,
                 0.,  0.,  1.,  0.,  0.,  0., -1., -0., -0.,  0.,  0.,  1.,  0.,  0.,
                 0.,  0.,  0.,  0., -0., -1., -0.,  0.,  0.,  0.,  0.,  0.,  0.,  1.,
@@ -137,7 +194,7 @@ constraint <- c(1.,  0.,  0.,  0.,  0.,  0.,  0.,  0., -1., -0., -0.,  0.,  0., 
                 -1.,  0.,  0.,  0.,  0.,  1.,  0.,  0.,  0.,  1.,  1.,  1.,  1.,  1.) %>% matrix(4, 21)
 
   
-B_est %>% 
+B_est_bias <- B_est %>% 
   select(-X) %>%
   pivot_longer(cols = starts_with("method_"),
                values_to = "value",
@@ -147,13 +204,157 @@ B_est %>%
   group_by(seed, nodes, method) %>%
   reframe(C_B_est = c(solve(tcrossprod(constraint), constraint %*% B_est)),
           C_B_real = c(solve(tcrossprod(constraint), constraint %*% B_real)),
-          component = paste0("component_", 1:4)) %>%
-  mutate(abs_error = abs(C_B_est - C_B_real)) %>%
+          component = paste0("beta", 1:4),
+          time_elapsed = mean(time_elapsed)) %>%
+  mutate(Error = (C_B_est - C_B_real)) %>%
   group_by(nodes, method, component) %>%
-  summarize(mean_abs_err = mean(abs_error)) %>%
-  ggplot() +
-  geom_point(aes(x = nodes, y = mean_abs_err, color = method)) +
-  facet_wrap(~component, scales = "free")
+  summarize(Bias = mean(Error),
+            Mean_ABS_Error = mean(abs(Error)),
+            SE = sd(Error),
+            Mean_Time_Elapsed = mean(time_elapsed),
+            SD_Time_Elapsed = sd(time_elapsed)) 
+
+
+
+B_est_bias %>%
+  ggplot(aes(x = nodes, y = Bias, color = method)) +
+  geom_pointrange(aes(ymin = Bias - 2*SE, ymax = Bias + 2*SE), position = position_dodge(width = 450)) +
+  facet_wrap(~component, scales = "free", labeller = my_labeller)+
+  labs(
+    title = paste0("Comparing Bias of Different Methods: ", "Bias", " \U00B1 ", "2 SE" ),
+    x = "Nodes",
+    y = "Bias",
+    color = "Method",
+    shape = "Initialization"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
   
 
+path_fish_est <- "/Users/shiwen/Desktop/ABC data sets/consistency/fish_all.csv"
+fish_est <- read.csv(path_fish_est) %>% na.omit() %>% as_tibble()
+fish_est_long <- fish_est %>%
+  rename(id = "X") %>%
+  pivot_longer(cols = starts_with("method_"),
+               values_to = "value",
+               names_to = "method",
+               names_prefix = "method_") %>%
+  filter(value == 1) %>%
+  select(-value) %>%
+  mutate(method = case_when(
+    method == 1 ~ "OL",
+    method == 2 ~ "OA", 
+    method == 3 ~ "NO"
+  )) %>%
+  pivot_longer(cols = starts_with("fisher_info_"),
+               values_to = "fisher_info",
+               names_to = "component",
+               names_prefix = "fisher_info_")
+
+
+fish_summary <- fish_est_long %>% 
+  group_by(nodes, method, id) %>%
+  reframe(diag_inv_H_fish_tH = c(diag(H %*% solve(matrix(fisher_info, 21, 21) )%*% t(H))),
+          component = paste0("beta",1:4)) %>%
+  mutate(st_dev = sqrt(diag_inv_H_fish_tH)) %>%
+  group_by(nodes, method, component) %>%
+  summarize(st_dev = mean(st_dev))
+
+
+B_SE_STD <- full_join(fish_summary, B_est_bias, by = join_by(nodes == nodes, method == method, component == component))
+
+my_labeller <- as_labeller(c("beta1" ="\U03B2[1]", "beta2" ="\U03B2[2]", "beta3" ="\U03B2[3]","beta4" ="\U03B2[4]"),
+                           default = label_parsed)
+B_SE_STD %>%
+  mutate(ratio = SE/st_dev) %>%
+  ggplot(aes(x = nodes, y = ratio, color = method)) +
+  geom_point(size = 3) + 
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red", size = 1)+
+  facet_wrap(~component, scales = "free", labeller = my_labeller) +
+  labs(
+    title = paste0("Nodes vs. ratio of Empirical and Theoretical Standard Deviation"),
+    x = "Nodes",
+    y = "Ratio",
+    color = "Method"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
+
+
+
+
+
+my_labeller <- as_labeller(c("beta1" ="\U03B2[1]", "beta2" ="\U03B2[2]", "beta3" ="\U03B2[3]","beta4" ="\U03B2[4]", 
+                             "OL" = "OL", "OA" = "OA", "NO" = "NO"),
+                           default = label_parsed)
+B_SE_STD %>%
+  select(nodes, method, component, st_dev, SE) %>%
+  rename(Theoretical = "st_dev",
+         Empirical = "SE") %>%
+  pivot_longer(cols = c("Theoretical", "Empirical"),
+               values_to = "STD_EST",
+               names_to = "STD_EST_type") %>%
+  ggplot() +
+  geom_point(aes(x = nodes, y = STD_EST, color = STD_EST_type), size = 2) + 
+  ggh4x::facet_grid2(method ~ component, scales = "free_y", independent = "y", labeller = my_labeller) + 
+  labs(
+    title = "Nodes vs. Theoretical/Empirical Standard Deviation, by Component and Method",
+    x = "Nodes",
+    y = "Standard Deviation",
+    color = "",
+    shape = "Method"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
+  
+
+
+
+
+
+
+# Run Time Comparison Across Methods --------------------------------------
+
+B_est_bias %>%
+  ggplot(aes(x = nodes, y = Mean_Time_Elapsed, color = method)) +
+  geom_pointrange(aes(ymin = Mean_Time_Elapsed - 2*SD_Time_Elapsed, ymax = Mean_Time_Elapsed + 2*SD_Time_Elapsed), position = position_dodge(width = 450))+
+  labs(
+    title = "Comparing Run Time When Using Different Methods",
+    x = "Nodes",
+    y = "Time: Seconds",
+    color = "Method",
+    shape = "Initialization"
+  ) +
+  theme(
+    text = element_text(size = 16, color = "black"),          # Default text size and color
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
+    axis.text = element_text(size = 14),                      # x and y axis tick labels
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title
+    legend.text = element_text(size = 14),                    # Legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
+  )
+
+  
   
