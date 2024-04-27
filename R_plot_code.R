@@ -390,3 +390,21 @@ B_est_bias %>%
     plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
   )
 
+
+
+
+
+
+
+B_SE_STD %>%
+  select(nodes, method, component, st_dev, SE) %>%
+  rename(Theoretical = "st_dev",
+         Empirical = "SE") %>%
+  pivot_longer(cols = c("Theoretical", "Empirical"),
+               values_to = "STD_EST",
+               names_to = "STD_EST_type") %>%
+  filter(method != "OA") %>% 
+  ggplot(aes(x = nodes, y = STD_EST, shape = STD_EST_type, color = method, linetype = STD_EST_type)) +
+  # geom_point(size = 2, alpha = .5) + #, position= position_dodge(width = 400)) + 
+  geom_line() +
+  facet_wrap(~component, scales = "free")
