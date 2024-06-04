@@ -208,64 +208,149 @@ class Op_Riemannian_GD:
 
         return(W)
 
-       
-def GD_RDPG(A,X, L, tol=1e-3):
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+# Penalized ASE by Gradient Descent
+#########################################################################################################################################################################
+#########################################################################################################################################################################
+#########################################################################################################################################################################
 
-    n = A.shape[0]
-    M = torch.ones(n, n) - torch.diag(torch.ones(n))
-    M, A, X = M.to(device), A.to(device), X.to(device)
+class GD_RDPG:
+    def __init__(self, adj_mat, regularization, lat_pos, smoothing = 5, tol = 1e-1, verbose = False):
+        self.settings = self.Settings(adj_mat, regularization, lat_pos, smoothing, tol, verbose)
+        self.fitted, self.loss_align = self.Adam_GD()
+        self.loss_simplex = Op_Riemannian_GD.simplex_loss_relu(self.fitted)
+        self.loss_data = GD_RDPG.data_loss(self.fitted)
+        
+        
+    class Settings:
+        def __init__(self, adj_mat, regularization, lat_pos, smoothing, tol, verbose):
+            self.A = adj_mat
+            self.L = regularization
+            self.Z = lat_pos
+            self.mu = smoothing
+            self.tol = tol
+            self.verbose = verbose
+            
+    @staticmethod
+    def align_simplex_loss(A, est_X, smoothing):
+        
+        est_X.requires_grad_(True)
+        
+        n, p = est_X.shape
+        mu = smoothing
+        M = torch.ones(n, n) - torch.diag(torch.ones(n))
+            
+        softplus = torch.nn.Softplus(beta = mu, threshold = 50)
+        
+        align_loss = torch.norm((A - torch.matmul(est_X, est_X.T)) * M, p = "fro")**2
+        
+        negativity_loss = torch.sum(softplus(-est_X))
 
-    X = X[:, :2]
+        row_sum_minus_1 = torch.sum(est_X, dim = 1) - 1
+        simp_loss = torch.sum(softplus(row_sum_minus_1))
+        
+        simplex_loss = negativity_loss + simp_loss
 
-    def gradient(A,X,M):
-
-        gd = 2 * torch.matmul(( -torch.mul((M.T+M), (A)) + torch.mul((M.T+M), torch.matmul(X, X.T))), X)
-        gd = gd + L*(-1)*(X < 0)
-        # rowsum_X_ind = (torch.sum(X, axis = 1) > 1) * 1.0
-        # gd = gd + 50*torch.cat([rowsum_X_ind.unsqueeze(0)] * 2, dim=0).T
-
-        return gd
+        return(align_loss, simplex_loss)
     
-    def cost_function(A,X,M):
+    @staticmethod
+    def data_loss(tensor):
+        
+        # Condition 1: Row sum greater than 1
+        row_sum_greater_than_1 = torch.sum(tensor, dim=1) > 1
+        
+        # Condition 2: Entries in the row less than 0
+        entries_less_than_0 = (tensor < 0).any(dim=1)
+        
+        # Count rows satisfying each condition
+        count_sum_greater_than_1 = torch.sum(row_sum_greater_than_1).item()
+        count_entries_less_than_0 = torch.sum(entries_less_than_0).item()
+        
+        return count_sum_greater_than_1 + count_entries_less_than_0
+    
+    def Adam_GD(self):
+        
+        A, Z, L, mu, tol = self.settings.A, self.settings.Z, self.settings.L, self.settings.mu, self.settings.tol
+        optimizer = torch.optim.Adam([Z], lr=0.01)
+        
+        i = 1
+        go = True
+        while go:
+            
+            optimizer.zero_grad()
+            align_loss, simplex_loss = GD_RDPG.align_simplex_loss(A, Z, mu)
+            simplex_loss = L * simplex_loss
+            align_loss.backward()
+            simplex_loss.backward()
+            optimizer.step()
+            
+            if self.settings.verbose & (i % 100 == 0):
+                print(f'Epoch {i}, Align Loss: {align_loss.item()}, simplex Loss: {simplex_loss.item()}')
 
-        cost = 0.5 * torch.norm((A - torch.matmul(X, X.T)) * M, p='fro')**2 
-        cost = cost + L*torch.sum(-X[X<0])
+            go = (torch.norm(Z.grad, p = "fro") > tol) & (i <= 1500)
+            i += 1
+            
+        return(Z, align_loss.item())
+       
+# def GD_RDPG(A,X, L, tol=1e-3):
 
-        # rowsum_X = torch.sum(X, axis = 1)
-        # cost = cost + 50*torch.sum(rowsum_X[rowsum_X > 1])
+#     n = A.shape[0]
+#     M = torch.ones(n, n) - torch.diag(torch.ones(n))
+#     M, A, X = M.to(device), A.to(device), X.to(device)
 
-        cost = cost.to("cpu")
-        torch.cuda.empty_cache()
-        return cost
+#     X = X[:, :2]
+
+#     def gradient(A,X,M):
+
+#         gd = 2 * torch.matmul(( -torch.mul((M.T+M), (A)) + torch.mul((M.T+M), torch.matmul(X, X.T))), X)
+#         gd = gd + L*(-1)*(X < 0)
+#         # rowsum_X_ind = (torch.sum(X, axis = 1) > 1) * 1.0
+#         # gd = gd + 50*torch.cat([rowsum_X_ind.unsqueeze(0)] * 2, dim=0).T
+
+#         return gd
+    
+#     def cost_function(A,X,M):
+
+#         cost = 0.5 * torch.norm((A - torch.matmul(X, X.T)) * M, p='fro')**2 
+#         cost = cost + L*torch.sum(-X[X<0])
+
+#         # rowsum_X = torch.sum(X, axis = 1)
+#         # cost = cost + 50*torch.sum(rowsum_X[rowsum_X > 1])
+
+#         cost = cost.to("cpu")
+#         torch.cuda.empty_cache()
+#         return cost
 
 
-    b=0.3; sigma=0.1 # Armijo parameters
-    rank = X.shape[1]
-    max_iter = 200*rank
-    t = 0.1
-    Xd=X
-    k=0
-    last_jump=1
-    d = -gradient(A,Xd,M)
-    tol = tol*(torch.norm(d))
-    while (torch.norm(d) > tol) & (last_jump > 1e-16) & (k<max_iter):
+#     b=0.3; sigma=0.1 # Armijo parameters
+#     rank = X.shape[1]
+#     max_iter = 200*rank
+#     t = 0.1
+#     Xd=X
+#     k=0
+#     last_jump=1
+#     d = -gradient(A,Xd,M)
+#     tol = tol*(torch.norm(d))
+#     while (torch.norm(d) > tol) & (last_jump > 1e-16) & (k<max_iter):
 
-        # Armijo
-        while (cost_function(A, Xd+t*d, M) > cost_function(A, Xd, M) - sigma*t*torch.norm(d)**2):
-            t=b*t
+#         # Armijo
+#         while (cost_function(A, Xd+t*d, M) > cost_function(A, Xd, M) - sigma*t*torch.norm(d)**2):
+#             t=b*t
 
-        Xd = Xd+t*d
-        last_jump = sigma*t*torch.norm(d)**2
-        t=t/(b)
-        k=k+1
-        d = -gradient(A,Xd,M)
+#         Xd = Xd+t*d
+#         last_jump = sigma*t*torch.norm(d)**2
+#         t=t/(b)
+#         k=k+1
+#         d = -gradient(A,Xd,M)
 
-    Xd = Xd.to("cpu")
-    del(M, A, X, d)
-    torch.cuda.empty_cache()
+#     Xd = Xd.to("cpu")
+#     del(M, A, X, d)
+#     torch.cuda.empty_cache()
 
-    last_dim = 1 - torch.sum(Xd, axis = 1).unsqueeze(1)
-    aligned_ASE_full = torch.cat((Xd, last_dim), dim = 1)
+#     last_dim = 1 - torch.sum(Xd, axis = 1).unsqueeze(1)
+#     aligned_ASE_full = torch.cat((Xd, last_dim), dim = 1)
 
-    return(aligned_ASE_full) 
+#     return(aligned_ASE_full) 
 
