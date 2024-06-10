@@ -172,18 +172,18 @@ class fit:
 
         current_estimate = first_estimate_no_int
 
-        current_response = response
-        go = True
-        i = 1
-        while go and i < 100:
-            current_response = new_response(current_estimate)
+        # current_response = response
+        # go = True
+        # i = 1
+        # while go and i < 100:
+        #     current_response = new_response(current_estimate)
 
-            new_estimate = H @ current_response
+        #     new_estimate = H @ current_response
 
-            change = torch.norm(fit.proj_beta((new_estimate - current_estimate), constraint_no_int), p = "fro")
-            current_estimate = new_estimate
-            go = change > tol
-            i += 1
+        #     change = torch.norm(fit.proj_beta((new_estimate - current_estimate), constraint_no_int), p = "fro")
+        #     current_estimate = new_estimate
+        #     go = change > tol
+        #     i += 1
         
         result = torch.cat((fit.proj_beta(current_estimate, constraint_no_int), 
                             torch.tensor([beta_0_guess])))

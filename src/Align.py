@@ -241,6 +241,7 @@ class GD_RDPG:
         n, p = est_X.shape
         mu = smoothing
         M = torch.ones(n, n) - torch.diag(torch.ones(n))
+        A, est_X, M = A.to(device), est_X.to(device), M.to(device)
             
         softplus = torch.nn.Softplus(beta = mu, threshold = 50)
         
@@ -273,10 +274,12 @@ class GD_RDPG:
     def Adam_GD(self):
         
         A, Z, L, mu, tol = self.settings.A, self.settings.Z, self.settings.L, self.settings.mu, self.settings.tol
+        A, Z = A.to(device), Z.to(device)
         optimizer = torch.optim.Adam([Z], lr=0.01)
         
         i = 1
         go = True
+        
         while go:
             
             optimizer.zero_grad()
