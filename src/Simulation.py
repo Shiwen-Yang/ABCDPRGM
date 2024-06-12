@@ -87,7 +87,7 @@ class ABC:
         return(Y)
     
     @staticmethod
-    def gen_X(Y, Z, K_groups, group_sizes = None):
+    def gen_X(Y, Z, K_groups):
         Y = Y.to(device)
         n, p = Z.shape
         nk = int(n/K_groups)
@@ -95,10 +95,7 @@ class ABC:
         Z_s = Z[:, :(p-1)].to(device)
 
         #within-group indicator matrix -- jth element of ith row is 1 IF j and i has the same group membership
-        if group_sizes is not None:
-            wthin_g = torch.kron(torch.eye(K_groups), torch.ones(nk, nk)).to(device)
-        else:
-            wthin_g = torch.block_diag(*[torch.ones(i, i) for i in group_sizes]).to(device)
+        wthin_g = torch.kron(torch.eye(K_groups), torch.ones(nk, nk)).to(device)
             
         #between-group indicator matrix       
         btwn_g  = (-1)*(wthin_g - 1)        
