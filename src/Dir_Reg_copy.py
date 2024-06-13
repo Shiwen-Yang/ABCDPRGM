@@ -27,6 +27,7 @@ class fit:
         self.response = response
         self.settings = self.reg_settings(constrained, beta_guess, tol, max_iter, verbose)
         self.est_result = None
+        self.NGD_result = None
 
     class reg_settings:
         def __init__(self, constrained, beta_guess, tol, max_iter, verbose):
@@ -194,11 +195,6 @@ class fit:
         predictor = predictor.to(device)
         alpha = torch.exp(torch.matmul(predictor, reg_parameter.to(device))).to(device)
         full_alpha = torch.stack([alpha.reshape(-1)]*(constraint.shape[1]), dim = 1)
-
-        # some things in here are done on every iteration but could be done in advance
-        # could set up an internal function to call and if it hasn't been done already then 
-        # you can run it otherwise just return what you have
-        # already computed
         
         predictor = torch.kron(predictor.to(device), torch.eye(p).to(device))
         if device != torch.device("mps"):
@@ -276,8 +272,7 @@ class fit:
     
 
 
-    
-    def Dir_NGD(self):
+    def Dir_NGD_unconstrained(self, tol = 1):
         """ 
         Fisher's Scoring algorithm. When the step size exceeds the tolerance after 100 iterations, returns the 0 matrix.
         
@@ -286,63 +281,56 @@ class fit:
             fisher_info (torch.Tensor of shape 4 by 4 or (3p-2)p by (3p-2)p): The Fisher's Info of the MLE of the model parameters.
             info_lost (float): percentage of rows in design matrix and response that contains negative entries
         """
+        if self.est_result is None:
+            self.Dir_GD_unconstrained()
+            
         start_time = time()
-        constrained = self.settings.constrained
-        predictor, response = self.predictor, self.response
-
-        n, p = response.shape
-        B = fit.gen_constraint(p, True).to(device)
-        constraint = fit.gen_constraint(p, constrained).to(device)
-
-        if self.settings.beta_guess is not None:
-            init_est_vec = self.settings.beta_guess.to(device)
-        else: 
-            init_est_vec = fit.linear_init(predictor, response, self.settings.beta_0_guess).to(device)
         
-        init_est_mat = (B @ init_est_vec).reshape(3*(p-1)+1, p)
+        predictor, response = self.predictor.to(device), self.response.to(device)
+        n, p = response.shape
+        good_df = fit.exclu_neg_res_pred(response, predictor)
+        predictor, response, n_new = good_df.values()
 
-
-        split = fit.exclu_neg_res_pred(response, predictor)
-        response, predictor, n_new = split["response"], split["pred"], split["n_new"]
-     
-        next_estimate = init_est_mat
-
+        constrained = self.settings.constrained
+        C = fit.gen_constraint(p, constrained).to(device)
+        
+        C_mat = fit.gen_constraint(p, True).to(device)
+        
+        B = self.est_result["estimate"].to(device)
+        B = torch.linalg.solve(C_mat.T @ C_mat , C_mat.T @ B.reshape(-1)).reshape(-1)
+    
+        B = (C_mat @ B).reshape(3*p-2, p)
+        
+        i, max_iter = 1, self.settings.max_iter   
         go = True
 
-        i = 1
         while go:
             
-            current_gradient = fit.grad_dir_reg(predictor, response, next_estimate, constrained)
+            current_gradient = fit.grad_dir_reg(predictor, response, B, constrained)
 
-            current_fisher_info = fit.fish_dir_reg(predictor, response, next_estimate, constrained)
+            current_fisher_info = fit.fish_dir_reg(predictor, response, B, constrained)
         
             step = torch.linalg.solve(current_fisher_info, current_gradient).to(device)
-
-            next_estimate = next_estimate + (constraint.matmul(step)).reshape(3*(p-1)+1, p)
+            B = B + (C @ step).reshape(3*p-2, p)
 
             step_size_now = torch.norm(step, p = "fro")
             
-            go = step_size_now > self.settings.tol
-
             i += 1
-            if i > self.settings.max_iter:
-                break
-        
-        
-        next_estimate = next_estimate.to("cpu")
+            go = (step_size_now > tol) & (i < max_iter) 
+
         current_fisher_info = current_fisher_info.to("cpu")
         end_time = time()
-        result_dic = {"estimate" : next_estimate, 
+        result_dic = {"estimate" : B.to("cpu"), 
                       "fisher_info": current_fisher_info, 
                       "info_lost": (1 - n_new/n), 
                       "num_iter": i - 1, 
                       "max_iter": self.settings.max_iter,
                       "time_elapsed": end_time - start_time}
 
-        del(current_gradient, current_fisher_info, step, next_estimate, B, constraint, init_est_vec)
+        del(current_gradient, current_fisher_info, step, B, C, C_mat)
         torch.cuda.empty_cache()
-        self.est_result = result_dic
-        return()
+        
+        self.NGD_result = result_dic
     
     
     def Dir_GD_unconstrained(self):
@@ -353,10 +341,11 @@ class fit:
         n, p = response.shape
         good_df = fit.exclu_neg_res_pred(response, predictor)
         predictor, response, n_new = good_df.values()
+        
+        constrained = self.settings.constrained
 
-        
-        
         C = fit.gen_constraint(p, True).to(device)
+        
         B_guess = self.settings.beta_guess.to(torch.float32).to(device)
         
         B = (C @ B_guess).reshape(3*p-2, p).to(device)
@@ -367,8 +356,13 @@ class fit:
         go = True
 
         while go:
+            
             Adam.zero_grad()
-            manual_gradient = fit.grad_dir_reg(predictor, response, B).to(device)
+            manual_gradient = fit.grad_dir_reg(predictor, response, B, constrained).to(device)
+            
+            if constrained:
+                manual_gradient = (C @ manual_gradient).reshape(3*p-2, p)
+            
             B.grad = -manual_gradient.reshape(3*p-2, p)
             Adam.step()
             
@@ -386,14 +380,172 @@ class fit:
         
         fish = fit.fish_dir_reg(predictor, response, B)
         
-        result_dic = {"estimate" : B, 
-                      "fisher_info": fish, 
+        result_dic = {"estimate" : B.cpu().detach(), 
+                      "fisher_info": fish.cpu(), 
                       "info_lost": (1 - n_new/n), 
                       "num_iter": i - 1, 
                       "max_iter": self.settings.max_iter,
                       "time_elapsed": end_time - start_time}
-        del(predictor, response, C, B)
         
+        del(predictor, response, C, B)
         torch.cuda.empty_cache()
+        
         self.est_result = result_dic
         return()
+    
+    
+    
+#Given observations a Dirichlet random variable, estimate the parameter alpha using MOME and MLE
+class est_alpha:
+    """
+    To estimate the parameter of a Dirichlet random variable using MLE
+
+    Args:
+        observation (torch.Tensor): Tensor of shape (n, p) containing i.i.d. samples of a Dirichlet random variable.
+        tol (float): Tolerance for the gradient descent method (default is 10e-5).
+
+    Attributes:
+        observation (torch.Tensor): Tensor of shape (n, p) containing i.i.d. samples of a Dirichlet random variable.
+        tolerance (float): Tolerance for the gradient descent method.
+        MOME (torch.Tensor): Method of moment estimator for Dirichlet random variables.
+        MLE (torch.Tensor): Maximum likelihood estimator for Dirichlet random variables.
+    """
+    def __init__(self, observation, tol = 10e-5):
+        
+        self.observation = observation
+        self.tolerance = tol
+        self.MOME = self.method_of_moment()
+        self.MLE = self.MLE()
+
+    
+    def method_of_moment(self):
+
+        """
+        Computes the method of moment estimator (MOME) for Dirichlet random variables.
+
+        Returns:
+            torch.Tensor: The MOME.
+        """
+
+        E = self.observation.mean(dim = 0)
+        V = torch.var(self.observation, dim = 0)
+
+        mome = E * (E*(1 - E)/V - 1)
+
+        return(mome)
+    
+    def likelihood(self, alpha, log_likelihood = False):
+
+        """  
+        Given observations, compute the likelihood or log-likelihood, L(X; alpha)
+
+        Args:
+            alpha(torch.Tensor): a component-wise positive vector
+            log_likelihood(boolean): when true, the output becomes the log likelihood
+
+        Returns:
+            float: the likelihood or log-likelihood
+        """
+
+        alpha.to(device)
+        alphap = alpha - 1
+
+        c = torch.exp(torch.lgamma(alpha.sum()) - torch.lgamma(alpha).sum())
+        likelihood = c * (self.observation ** alphap).prod(axis=1)
+        likelihood.to("cpu")
+
+        del(alpha, alphap, c)
+        torch.cuda.empty_cache()
+    
+        if log_likelihood:
+            return(torch.log(likelihood).sum())
+        else:
+            return(likelihood.sum())
+    
+    @staticmethod
+    def mean_log(alpha):
+
+        """  
+        Expectation of the log(Dir(alpha)) distribution
+
+        Args:
+            alpha(torch.Tensor): a component-wise positive vector
+
+        Returns:
+            torch.Tensor of length p: the expected value of the log(Dir(alpha)) distribution
+        """
+
+        mean_of_log = (torch.digamma(alpha) - torch.digamma(alpha.sum()))
+
+        return(mean_of_log)
+    
+    @staticmethod
+    def var_log(alpha, inverse = False):
+
+        """  
+        Variance matrix of the log(Dir(alpha)) distribution
+
+        Args:
+            alpha(torch.Tensor): a component-wise positive vector
+            inverse(boolean): when true, the output becomes the inverse of the variance matrix
+
+        Returns:
+            torch.Tensor: the variance matrix of the log(Dir(alpha)) distribution
+        """
+ 
+        p = alpha.shape[0]
+        one_p = torch.ones(p).unsqueeze(1)
+        c = torch.polygamma(1, alpha.sum())
+        Q = -torch.polygamma(1, alpha)
+        Q_inv = torch.diag(1/Q)
+
+       #When inverse is true, the Sherman-Morrison formula is used to compute the inverse of the variance matrix
+        if inverse:
+
+            numerator = (Q_inv @ (c*one_p @ one_p.T) @ Q_inv)
+
+            denominator = (1 + c * one_p.T @ Q_inv @ one_p)
+
+            var_inv = Q_inv - numerator/denominator
+
+            return(var_inv)
+        else:
+            
+            return(torch.diag(Q) + c)
+
+    def MLE(self):
+
+        """  
+        Given observations of a Dirichlet random variable, compute the maximum likelihood estimator
+
+        Returns:
+            torch.Tensor: the estimated parameter vector
+        """
+        #Given observations, compute the maximum likelihood estimator using newton gradient descent
+        #The gradient descent is initialized on the computed MOME
+        
+        empirical_avg_log = torch.log(self.observation).mean(dim = 0)
+
+        initialization = self.MOME
+
+        tol = self.tolerance
+
+        next_par = initialization
+
+        go = True
+        i = 1
+        while go:
+            var_inv = self.var_log(next_par, inverse = True)
+            
+            log_mean = empirical_avg_log - self.mean_log(next_par)
+
+            step = var_inv @ (log_mean)
+
+            next_par = next_par - step
+
+            go = (i <= 1000) & (torch.norm(step) > tol)
+
+            i += 1
+
+        return(next_par)
+
