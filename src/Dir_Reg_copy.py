@@ -350,10 +350,11 @@ class fit:
         start_time = time()
         
         predictor, response = self.predictor.to(device), self.response.to(device)
+        n, p = response.shape
         good_df = fit.exclu_neg_res_pred(response, predictor)
         predictor, response, n_new = good_df.values()
 
-        n, p = response.shape
+        
         
         C = fit.gen_constraint(p, True).to(device)
         B_guess = self.settings.beta_guess.to(torch.float32).to(device)
