@@ -128,7 +128,12 @@ class fit:
         temp = torch.cat((response, predictor), dim = 1)
         indicator = (temp >= 0) & (temp <= 1)
         filtered = temp[indicator.all(dim = 1)]
-        response, pred = filtered[:,:p], filtered[:,p:]
+        
+        # Further filter rows where the sum of the row is less than or equal to 1
+        final_filtered = filtered[filtered.sum(dim=1) <= 1]
+
+        # Split the final filtered tensor back into response and predictor
+        response, pred = final_filtered[:, :p], final_filtered[:, p:]
         n_new = response.shape[0]
 
         result_dict = {"pred": pred, "response": response, "n_new": n_new}
