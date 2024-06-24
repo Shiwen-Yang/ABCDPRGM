@@ -130,7 +130,7 @@ class fit:
         filtered = temp[indicator.all(dim = 1)]
         
         # Further filter rows where the sum of the row is less than or equal to 1
-        final_filtered = filtered[filtered.sum(dim=1) <= 1]
+        final_filtered = filtered[(filtered[:, :p-1].sum(dim = 1) <= 1) & (filtered[:, p:(2*p - 1)].sum(dim = 1) <= 1)]
 
         # Split the final filtered tensor back into response and predictor
         response, pred = final_filtered[:, :p], final_filtered[:, p:]
