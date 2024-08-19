@@ -4,6 +4,29 @@ from src import Simulation as sim
 from src import Dir_Reg
 
 class est:
+    """ 
+    
+    This is a wrapper for the Dirichlet Regression method. Taking in raw data, it processes it and then run the Dirichlet Regression.
+
+    Args:
+        embed_dimension (int): the embedding dimension when true latent position is unknown
+        two_lat_pos (torch.tensor of shape 2 by n by (3p-2)): the latent positions, two_lat_pos[0,:,:] is the latent position at t = 0, the other slice is the latent position at t = 1
+        two_adj_mat (torch.tensor of shape 2 by n by n): the adjacency matrices with similar construction to two_adj_mat
+        group (int): the number of groups in the network 
+        beta_guess (torch.tensor of shape 4): a vector to initiate the gradient descent
+        beta_0_guess (float): estimate of the intercept term but negative. 
+        max_iter_est (int): maximum number of iterations for the gradient descent
+        RGD_mode (string: softplus or relu): specifies the type of penalty function for RGD
+        RGD_softplus_parameter (float): bigger parameter means that the softplus penalty looks more relu.
+        tol_(est/RGD) (float): stopping criterions
+
+    Attributes:
+        specify_model (method): use this to specify the method to be used to obtain the latent postions. It can be "OL", "OA", or "NO". this method automatically calls the process method that process the data. When fit = True, a regression is fitted as well. 
+        data (dictionary): has two components, "predictor" and "response". It's the output of the 'process' method
+        fitted (Dir_Reg.fit): it's the result object from the Dirichlet regression
+    
+    """
+    
     def __init__(self, embed_dimension, two_lat_pos = None, two_adj_mat = None, groups = 3, constrained = False, beta_guess = None, 
                  beta_0_guess = -10, max_iter_est = 200,  RGD_mode = "softplus", RGD_softplus_parameter = 5, tol_est = 10e-2, tol_RGD = 10e-2):
         

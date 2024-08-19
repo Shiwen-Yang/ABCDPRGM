@@ -7,10 +7,30 @@
 #########################################################################################################################################################################
 import torch
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device("mps") if torch.backends.mps.is_available() else device
 from functools import partial
 
 
 class Oracle:
+    
+    """ 
+    
+    Given a reference latent position (typically, the true latent position), embed a adjacency matrix in some 
+    dimension using ASE, and find an orthogonal transformation that aligns the ASE to the reference
+    
+    Args:
+        reference (torch.tensor of dimension n by p): under our settings, it will be the true latent position
+        need_align_adj (torch.tensor of dimension n by n): the adjacency matrix for the observed network
+        embed_dimension (int): the number of dimensions to embed the adjacency matrix in
+
+    Attributes:
+        embed_raw (torch.tensor of dimension n by embed_dimension): the ASE of the adjacency matrix in embed_dimension-dimension
+        align_mat (torch.tensor of dimension embed_dimension by embed_dimension): the orthogonal transformation that aligns the ASE to the reference
+        embed_aligned (torch.tensor of dimension n by embed_dimension): the aligned ASE
+            
+    """
+    
+    
     def __init__(self, reference, need_align_adj, embed_dimension):
         self.reference = reference
         self.need_align = need_align_adj
@@ -22,12 +42,22 @@ class Oracle:
     
     @staticmethod
     def ASE(A, embed_dim):
+        
+        """ 
+        Given an adjacency matrix, embed it to embed_dim dimension using ASE 
+        """
+        
         temp_svd = torch.svd_lowrank(A, q = embed_dim)
         temp_ASE = temp_svd[0] @ torch.diag(torch.sqrt(temp_svd[1]))
         return(temp_ASE)
     
     @staticmethod
     def ortho_proc(reference, need_align):
+        
+        """ 
+        Given a reference, and a matrix, find the orthogonal transformation that aligns the matrix to the reference.
+        """
+        
         n, p = reference.shape
 
         # Perform partial SVD (dim = (p-1)) on the product of the matrices, since latent position has rank (p-1)
@@ -60,6 +90,23 @@ class Oracle:
 
 class Op_Riemannian_GD:
     
+    """ 
+    
+    Given some data, find an orthogonal transforamtion that put it into the standard simplex using Riemannian gradient descent on Op, the orthogonal group of dimension p. 
+    
+    Args:
+        data (torch.tensor of dimension n by p): under our settings, it is the raw ASE that we cannot use to estimate the model parameter
+        tolerace (float): stopping criterion for the gradient descent
+        mode (string): either "softplus" or "relu", it defines the type of penalty function used
+        softplus_parameter (float): bigger parameter means that the softplus function looks more like the relu function, i.e. less smooth penalty
+    
+    Attributes:
+        relu_loss: loss under the relu penalty
+        softplus_loss: loss under the softplus penalty
+        align_mat: the desired orthogonal transformation
+    
+    """
+    
     def __init__(self, data, initialization = None, mode = "softplus", softplus_parameter = 5, tolerance = 0.01):
 
         self.data = data
@@ -82,6 +129,24 @@ class Op_Riemannian_GD:
 
     @staticmethod
     def simplex_loss_relu(data_set):
+        """
+        Computes the simplex loss using the ReLU function on the input dataset.
+
+        The loss consists of two components:
+        1. Negativity Loss: Penalizes negative values in the dataset.
+        2. Simplex Constraint Loss: Penalizes rows whose sum deviates from 1.
+
+        Args:
+        -----
+        data_set : torch.Tensor
+            A 2D tensor where each row represents a vector that is expected to lie on a simplex.
+            The function assumes `data_set` has dimensions (n, p), where `n` is the number of vectors and `p` is the dimension of each vector.
+
+        Returns:
+        --------
+        torch.Tensor
+            A scalar tensor representing the total simplex loss, which is the sum of the negativity loss and the simplex constraint loss.
+        """
 
         X = data_set
         relu = torch.nn.ReLU()
@@ -95,6 +160,15 @@ class Op_Riemannian_GD:
     
     @staticmethod
     def simplex_loss_softplus(data_set, smoothing):
+        
+        """ 
+        
+        Same thing as the simplex_loss_relu function, but replacing the ReLU function with a softplus function with parameter smoothing. 
+        The softplus function with parameter beta is defined to be:
+        
+        softplus(x, beta) = log(1 + exp(x * beta))/beta
+        
+        """
 
         X = data_set
         mu = smoothing
@@ -109,6 +183,10 @@ class Op_Riemannian_GD:
         return(negativity_loss + simp_loss)
     
     def deriv_W_relu(self, W):
+        
+        """ 
+        The derivative of the ReLU penalty function, L(X*W) with respect to W, the orthogonal transformation 
+        """
 
         X = self.data
         n, p = X.shape
@@ -122,6 +200,10 @@ class Op_Riemannian_GD:
         return(deriv_neg + deriv_simp)
     
     def deriv_W_softplus(self, W):
+        
+        """ 
+        The derivative of the softplus function, L(X*W, mu) with respect to W, the orthogonal transformation 
+        """
 
         X = self.data
         n, p = X.shape
@@ -139,18 +221,30 @@ class Op_Riemannian_GD:
         return(deriv_neg + deriv_simp)
     
     def proj_skew_sym_at_W(self, M, W):
+        
+        """ 
+        Projection of M to the tangent space of Op at W
+        """
 
         projection = W @ (W.T @ M - M.T @ W)/2
 
         return(projection)
 
     def matrix_exp_at_W(self, xi, W):
+        
+        """ 
+        The retractiom, it takes xi, the computed gradient step, and map it onto Op along a geodesic that starts at W
+        """
 
         Exp_w_xi = W @ torch.matrix_exp(W.T @ xi)
 
         return(Exp_w_xi)
     
     def GD_one_step(self, prev_position, step):
+        
+        """ 
+        Given the current orthogonal transformation, and a step size, take a graident descent step, and get another orthogonal transformation
+        """
         
         W_old = prev_position
 
@@ -168,6 +262,10 @@ class Op_Riemannian_GD:
         return(W_new)
     
     def GD_Armijo(self):
+        
+        """ 
+        Backtracking line search but uses the riemannian gradient instead
+        """
 
         X = self.data
         n, p = X.shape
@@ -217,6 +315,29 @@ class Op_Riemannian_GD:
 #########################################################################################################################################################################
 
 class GD_RDPG:
+    
+    """
+    
+    Given an adjacency matrix, A, find latent positions, X, such that it minimizes the following two losses:
+    1. AL, alignment loss: ||A - X * X.T||_F
+    2. SL, smplex loss, same as the one defined in Op_Riemannian_GD.simplex_loss_softplus
+    
+    Args: 
+        adj_mat (torch.tensor of dimension n by n): an adjacency matrix that we are trying to embed into the simplex
+        regularization (float): the weight of SL in the combined penalty
+        lat_pos (torch.tensor of dimension n by p): a guess of the latent position, typically, it will be the ASE. it is the starting position for the gradient descent
+        smoothing (float): the parameter for the softplus function, bigger = less smooth penalty
+        tol (float): stopping criterion for the gradient descent
+        verbose (boolean): if the gradient progress should be printed
+        
+    Attributes:
+        settings (class): the settings...
+        fitted (torch.tensor of dimension n by p): the desired estimated latent position
+        loss_align (float): the loss from AL of the final estimate
+        loss_simples (float): the loss from SL of the final estimate
+        loss_data (float): the amount of estimated latent position that is outside of the simplex
+    
+    """
     def __init__(self, adj_mat, regularization, lat_pos, smoothing = 5, tol = 1e-1, verbose = False):
         self.settings = self.Settings(adj_mat, regularization, lat_pos, smoothing, tol, verbose)
         self.fitted, self.loss_align = self.Adam_GD()
@@ -235,6 +356,10 @@ class GD_RDPG:
             
     @staticmethod
     def align_simplex_loss(A, est_X, smoothing):
+        
+        """ 
+        loss from AL + loss from SL
+        """
         
         est_X.requires_grad_(True)
         
@@ -259,6 +384,10 @@ class GD_RDPG:
     @staticmethod
     def data_loss(tensor):
         
+        """ 
+        counting the amount of data that is outside of the simplex
+        """
+        
         # Condition 1: Row sum greater than 1
         row_sum_greater_than_1 = torch.sum(tensor, dim=1) > 1
         
@@ -272,6 +401,10 @@ class GD_RDPG:
         return count_sum_greater_than_1 + count_entries_less_than_0
     
     def Adam_GD(self):
+        
+        """ 
+        minimizing the penalty function with respect to Z, the latent position, using Adam 
+        """
         
         A, Z, L, mu, tol = self.settings.A, self.settings.Z, self.settings.L, self.settings.mu, self.settings.tol
         A, Z = A.to(device), Z.to(device)
@@ -296,64 +429,3 @@ class GD_RDPG:
             i += 1
             
         return(Z, align_loss.item())
-       
-# def GD_RDPG(A,X, L, tol=1e-3):
-
-#     n = A.shape[0]
-#     M = torch.ones(n, n) - torch.diag(torch.ones(n))
-#     M, A, X = M.to(device), A.to(device), X.to(device)
-
-#     X = X[:, :2]
-
-#     def gradient(A,X,M):
-
-#         gd = 2 * torch.matmul(( -torch.mul((M.T+M), (A)) + torch.mul((M.T+M), torch.matmul(X, X.T))), X)
-#         gd = gd + L*(-1)*(X < 0)
-#         # rowsum_X_ind = (torch.sum(X, axis = 1) > 1) * 1.0
-#         # gd = gd + 50*torch.cat([rowsum_X_ind.unsqueeze(0)] * 2, dim=0).T
-
-#         return gd
-    
-#     def cost_function(A,X,M):
-
-#         cost = 0.5 * torch.norm((A - torch.matmul(X, X.T)) * M, p='fro')**2 
-#         cost = cost + L*torch.sum(-X[X<0])
-
-#         # rowsum_X = torch.sum(X, axis = 1)
-#         # cost = cost + 50*torch.sum(rowsum_X[rowsum_X > 1])
-
-#         cost = cost.to("cpu")
-#         torch.cuda.empty_cache()
-#         return cost
-
-
-#     b=0.3; sigma=0.1 # Armijo parameters
-#     rank = X.shape[1]
-#     max_iter = 200*rank
-#     t = 0.1
-#     Xd=X
-#     k=0
-#     last_jump=1
-#     d = -gradient(A,Xd,M)
-#     tol = tol*(torch.norm(d))
-#     while (torch.norm(d) > tol) & (last_jump > 1e-16) & (k<max_iter):
-
-#         # Armijo
-#         while (cost_function(A, Xd+t*d, M) > cost_function(A, Xd, M) - sigma*t*torch.norm(d)**2):
-#             t=b*t
-
-#         Xd = Xd+t*d
-#         last_jump = sigma*t*torch.norm(d)**2
-#         t=t/(b)
-#         k=k+1
-#         d = -gradient(A,Xd,M)
-
-#     Xd = Xd.to("cpu")
-#     del(M, A, X, d)
-#     torch.cuda.empty_cache()
-
-#     last_dim = 1 - torch.sum(Xd, axis = 1).unsqueeze(1)
-#     aligned_ASE_full = torch.cat((Xd, last_dim), dim = 1)
-
-#     return(aligned_ASE_full) 
-

@@ -19,6 +19,22 @@ from tqdm import tqdm as tm
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class ABC:
+    
+    """ 
+    
+    Given parameters of the ABCDPRGM, simulate the evolution of the model. 
+    
+    Args:
+        time (int): number of time points for the model
+        nodes (int): number of nodes for the model
+        beta (list of 4 floats): parameter beta as defined in ABCDPRGM. it drives the dynamics of the model
+        alpha_0 (K by p matrix as a list of lists of floats): since we are assuming the model initializes on a mixture Dirichlet distribution, we use alpha_0 to specify the initial distribution
+        
+    Attribute:
+        settings (class): it contaisn the settings of the simulation
+        synth_data (dictionary): has two components "lat_pos", a 2 by n by p tensor and "obs_adj", a 2 by n by n tensor. 
+    
+    """
 
     def __init__(self, time, nodes, beta, alpha_0):
 
@@ -168,12 +184,28 @@ class ABC:
         return(sim_model)
     
 
+
 class ABC_Monte_Carlo:
+    
+    """ Just a container for all other methods for monte-carlo simulations of ABCDPRGM"""
+    
     def __init__(self) -> None:
         pass
 
     @staticmethod
     def lat_pos(synth_data, K_groups):
+        
+        """ 
+        
+        A method to convert unlabeled but STRUCTURED torch.tensor latent position data into labelled pd.dataframe latent position data. 
+        By assumption, the unlabelled data will have equal representation from each group, and it needs to be sorted by group membership. 
+        
+        Args: 
+            synth_data (torch.tensor of dimension T by n by p): the latent position output -- ABC.synth_data["lat_pos"]
+            K_groups (int): the number of groups in the network
+        
+        """
+        
         K = K_groups
         T, n, p = synth_data.shape
         group_membership = torch.arange(K).repeat_interleave(int(n/K)).repeat(T).reshape(T, n, 1)
@@ -190,6 +222,23 @@ class ABC_Monte_Carlo:
     
     @staticmethod 
     class check_lat_pos:
+        
+        """ 
+        
+        Checking the (true/estimated) latent position of a ABCEPRGM with n nodes.
+        
+        Args:
+            model (class): it is an ABC class as defined earlier. It is the ABCDPRGM, and probably should have been inheritted... but it works as is
+            n (int): the number of nodes
+            
+        Attributes:
+            truth (torch.tensor of dimension n by p-1): the true latent position
+            ASE (torch.tensor of dimension n by p-1): the adjacency spectral embedding of the graph
+            ASE_aligned (torch.tensor of dimension n by p-1): ASE aligned with the truth using orthogonal procrustes
+            RGD_aligned (torch.tensor of dimension n by p-1): ASE aligned without the truth using RGD 
+        
+        """
+        
         def __init__(self, model, n):
             model.update_settings(nodes = n)
             p = model.settings.p 
@@ -214,7 +263,29 @@ class ABC_Monte_Carlo:
     
     @staticmethod
     class consistency_T2:
-        """ no_oracle should be aight now"""
+        """ 
+        
+        Given settings of an ABCDPRGM, run monte-carlo simulations and store the output in a pd.dataframe
+        
+        Args:
+            number_of_iterations (int): the number of monte-carlo simulations to be done for a fixed number of nodes
+            nodes_set (int, list): a list of all the different network size
+            beta (float, list of length 4): the beta parameter in ABCDPRGM
+            alpha_0 (float, list of lists K by p): the initial Dirichlet parameter
+            oracle_guess (boolean): if the gradient descent should start at the true parameter
+            seeded (boolean): if the simulations should be seeded
+            constrained (boolean): are we estimating B, the entire matrix, or beta, the vector of length 4
+            oracle_lat_pos (boolean): are we using oracle latent positions
+            oracle_align (boolean): are we using ASE that is aligned with the true latent position as our latent position
+            no_oracle (boolean): are we not using any help at all (we are using RGD in this case)
+            
+        Attributes:
+            settings (class): the settings of the simulation
+            MC_result (class): it contains two attributes, est, which is a pd.dataframe that contains all relavent information about results from the monte-carlo simulations
+            about estimating the true parameter, and fish, which is a pd.dataframe about the fishers' information from the monte-carlo simulations
+            
+        
+        """
         def __init__(self, number_of_iterations, nodes_set, beta, alpha_0, oracle_guess = True, seeded = True, constrained = False, oracle_lat_pos = True, oracle_align = False, no_oracle = False):
             self.settings = self.settings(number_of_iterations, nodes_set, beta, alpha_0, oracle_guess, seeded, constrained, oracle_lat_pos, oracle_align, no_oracle)
             self.MC_result = self.many_rounds()
