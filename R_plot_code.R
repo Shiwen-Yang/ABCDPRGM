@@ -173,16 +173,9 @@ fish_summary <- fish_est_long %>%
 B_SE_STD <- full_join(fish_summary, B_est_bias, by = join_by(nodes == nodes, method == method, component == component))
 
 
+# real data: away group in action -----------------------------------------
 
-
-
-
-
-
-  
-
-
-
+aw_bias <- read.csv("~/Python Projects/ABCDPRGM/real_data/aw_bias.csv")[,-1] %>% as_tibble()
 
 
 
@@ -430,3 +423,29 @@ B_SE_STD %>%
   # geom_point(size = 2, alpha = .5) + #, position= position_dodge(width = 400)) + 
   geom_line() +
   facet_wrap(~component, scales = "free")
+
+
+
+
+# Plot 9: est vs. dim with error bars (Real Data) ---------------------------------------------
+aw_bias %>% pivot_longer(
+    cols = starts_with("b"),
+    names_to = "est_comp",
+    names_prefix = "b",
+    values_to = "est"
+  ) %>%
+  pivot_longer(
+    cols = starts_with("s"),
+    names_to = "SD_comp",
+    names_prefix = "s",
+    values_to = "SD"
+  ) %>% 
+  filter(est_comp == SD_comp) %>%
+  select(-SD_comp) %>%
+  mutate(est_comp = as.numeric(est_comp) + 1) %>%
+  ggplot(aes(x = dim, y = est)) +
+  geom_point() +  # Scatter plot
+  geom_errorbar(aes(ymin = est - 2 * SD, ymax = est + 2 * SD), width = 0.1) +  # Error bars with 2*SD
+  facet_wrap(~ est_comp, scales = "free") +  # Facet wrap by `est_comp`
+  labs(x = "Dimension", y = "Estimate", title = "Estimate vs. Dimension with Error Bars (2*SD)")
+
