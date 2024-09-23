@@ -7,10 +7,7 @@ library(ggh4x)
 
 
 # evolution of the model example ------------------------------------------
-evo <- read.csv("C:/Users/yangs/Documents/Python Projects/ABCDPRGM/simulated_data/time_vs_lat_pos/neg_4_sample.csv") %>% as_tibble() %>% select(-X)
-
-
-
+evo <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/time_vs_lat_pos/neg_4_sample.csv") %>% as_tibble() %>% select(-X)
 
 
 # Comparing Alignment: Oracle vs. RGD -------------------------------------
@@ -175,10 +172,22 @@ B_SE_STD <- full_join(fish_summary, B_est_bias, by = join_by(nodes == nodes, met
 
 # real data: away group in action -----------------------------------------
 
-aw_bias <- read.csv("~/Python Projects/ABCDPRGM/real_data/aw_bias.csv")[,-1] %>% as_tibble()
+aw_bias <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/real_data/aw_bias.csv")[,-1] %>% as_tibble()
 
 
-
+# Plot theme --------------------------------------------------------------
+theme_big <- function() {
+  theme(
+    text = element_text(size = 12, color = "black"),          # Default text size, slightly smaller for paper
+    axis.title.x = element_text(size = 14, face = "bold", margin = margin(t = 10, b = 10, unit = "pt")),  # Compact margins for paper
+    axis.title.y = element_text(size = 14, face = "bold", margin = margin(l = 10, r = 10, unit = "pt")),  # Compact y-axis labels
+    axis.text = element_text(size = 12),                      # Tick labels small and readable
+    legend.title = element_text(size = 12, face = "bold"),    # Legend title size appropriate for paper
+    legend.text = element_text(size = 12),                    # Smaller legend text
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5, margin = margin(t = 20, b = 20, unit = "pt")),  # Title slightly larger but not too much
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt")  # Minimal margins to save space
+  )
+}
 
 # Plot 0: evolution of the model -- Example 1 -----------------------------
 
@@ -186,10 +195,9 @@ evo %>% filter(time %in% c(6, 8, 10, 12)) %>%
   mutate(Group = as.factor(group)) %>%
   ggplot(aes(x = dim_1, y = dim_2, color = Group)) +
   geom_point(size = 2, alpha = 0.3) +
-  geom_density_2d(linewidth = 1, alpha = 0.8)  + 
+  geom_density_2d(linewidth = 0.5, alpha = 0.8)  + 
   facet_wrap(~time, labeller = labeller(time = c('6' = 'T = 6', '8' = 'T = 8', '10' = 'T = 10', '12' = 'T = 12')))+
-  theme_minimal() +
-  labs(x = "Dimension 1", y = "Dimension 2") +
+  labs(x = "Dimension 1", y = "Dimension 2", title = "Polarization Through Time") +
   theme_big()
 
 
@@ -447,5 +455,6 @@ aw_bias %>% pivot_longer(
   geom_point() +  # Scatter plot
   geom_errorbar(aes(ymin = est - 2 * SD, ymax = est + 2 * SD), width = 0.1) +  # Error bars with 2*SD
   facet_wrap(~ est_comp, scales = "free") +  # Facet wrap by `est_comp`
-  labs(x = "Dimension", y = "Estimate", title = "Estimate vs. Dimension with Error Bars (2*SD)")
+  labs(x = "Dimension", y = "Estimate", title = "Away: Dim vs. Est with Error Bar (2*SD)") +
+  theme_big()
 
