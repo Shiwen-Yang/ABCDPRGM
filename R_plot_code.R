@@ -3,23 +3,12 @@ library(cowplot)
 library(latex2exp)
 library(ggh4x)
 
-temp <- read.csv("C:/Users/yangs/Documents/Python Projects/ABCDPRGM/simulated_data/time_vs_lat_pos/neg_4_sample.csv") %>% as_tibble() %>% select(-X)
 
-temp %>% filter(time %in% c(6, 8, 10, 12)) %>% 
-  mutate(Group = as.factor(group)) %>%
-  ggplot(aes(x = dim_1, y = dim_2, color = Group)) +
-  geom_point(size = 2, alpha = 0.3) +
-  geom_density_2d(linewidth = 1, alpha = 0.8)  + 
-  facet_wrap(~time, labeller = labeller(time = c('6' = 'T = 6', '8' = 'T = 8', '10' = 'T = 10', '12' = 'T = 12')))+
-  theme_minimal() +
-  labs(x = "Dimension 1", y = "Dimension 2") +
-  theme(
-    strip.text = element_text(size = 40),  # Font size for facet titles
-    legend.title = element_text(size = 40),  # Font size for legend title
-    legend.text = element_text(size = 40),  # Font size for legend text
-    axis.title = element_text(size = 40),  # Font size for axis titles
-    axis.text = element_text(size = 40)  # Font size for axis text
-  )
+
+
+# evolution of the model example ------------------------------------------
+evo <- read.csv("C:/Users/yangs/Documents/Python Projects/ABCDPRGM/simulated_data/time_vs_lat_pos/neg_4_sample.csv") %>% as_tibble() %>% select(-X)
+
 
 
 
@@ -197,6 +186,18 @@ B_SE_STD <- full_join(fish_summary, B_est_bias, by = join_by(nodes == nodes, met
 
 
 
+
+# Plot 0: evolution of the model -- Example 1 -----------------------------
+
+evo %>% filter(time %in% c(6, 8, 10, 12)) %>% 
+  mutate(Group = as.factor(group)) %>%
+  ggplot(aes(x = dim_1, y = dim_2, color = Group)) +
+  geom_point(size = 2, alpha = 0.3) +
+  geom_density_2d(linewidth = 1, alpha = 0.8)  + 
+  facet_wrap(~time, labeller = labeller(time = c('6' = 'T = 6', '8' = 'T = 8', '10' = 'T = 10', '12' = 'T = 12')))+
+  theme_minimal() +
+  labs(x = "Dimension 1", y = "Dimension 2") +
+  theme_big()
 
 
 
