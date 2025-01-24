@@ -156,8 +156,9 @@ class fit:
         response, pred, n_new = split["response"], split["pred"], split["n_new"]
 
         H = torch.linalg.solve((pred.T @ pred), pred.T)
-
-        constraint_no_int = torch.kron(torch.eye(3), torch.tensor([[1,0,-1,0,1,-1]])).T
+        
+        temp = torch.cat([torch.eye(p-1), -torch.ones(p-1).unsqueeze(0).T], dim = 1).reshape(-1)
+        constraint_no_int = torch.kron(torch.eye(3), temp).T
 
         first_estimate_no_int = H.matmul(torch.log(response))
 
