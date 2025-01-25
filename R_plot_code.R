@@ -170,8 +170,21 @@ fish_summary <- fish_est_long %>%
 B_SE_STD <- full_join(fish_summary, B_est_bias, by = join_by(nodes == nodes, method == method, component == component))
 
 
+# Robustness for Embedding Dimension Misspecification ---------------------
+path_robustness <- "/Users/shiwen/Documents/GitHub/ABCDPRGM/simulated_data/dimension_robustness/robustness.csv"
+df_robust <- read.csv(path_robustness) %>% 
+  as_tibble() %>%
+  mutate(beta1 = beta1 - 1, 
+         beta2 = beta2 - 1, 
+         beta3 = beta3 + 4, 
+         beta4 = beta4 - 5) %>% 
+  na.omit %>%
+  pivot_longer(cols = starts_with("beta"), 
+               names_to = "component",
+               names_prefix = "beta") %>%
+  group_by(n, p0, component) %>%
+  summarize(m = mean(value), m_info = mean(info_lost),sd = sd(value))
 # real data: away group in action -----------------------------------------
-
 aw_bias <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/real_data/aw_bias.csv")[,-1] %>% as_tibble()
 
 
@@ -203,7 +216,7 @@ evo %>% filter(time %in% c(6, 8, 10, 12)) %>%
 
 
 
-# Plot 1:  Align Error: Oracle vs. RGD -- Example 1 ----------------------------------------------------------------
+# Plot 1: Align Error: Oracle vs. RGD -- Example 1 ----------------------------------------------------------------
 
 df_performance %>%
   ggplot(aes(x = nodes, y = Error, color = Time, shape = method)) +
@@ -360,7 +373,7 @@ B_SE_STD %>%
   )
 
 
-# Plot 7:  Nodes vs. Theoretical/Empirical Standard Deviation----------------------------------------------------------------
+# Plot 7: Nodes vs. Theoretical/Empirical Standard Deviation----------------------------------------------------------------
 
 my_labeller <- as_labeller(c("beta1" ="\U03B2[1]", "beta2" ="\U03B2[2]", "beta3" ="\U03B2[3]","beta4" ="\U03B2[4]", 
                              "OL" = "OL", "OA" = "OA", "NO" = "NO"),
@@ -435,7 +448,34 @@ B_SE_STD %>%
 
 
 
-# Plot 9: est vs. dim with error bars (Real Data) ---------------------------------------------
+
+# Plot 9: Embedding Dimension vs. Mean Bias for Robustness -----------------
+
+df_robust %>% 
+  ggplot(aes(x = p0, y = m, color = factor(n))) +
+  geom_pointrange(aes(ymin = m - 2 * sd, ymax = m + 2 * sd), 
+                  position = position_dodge(width = 0.2)) +
+  facet_wrap("component", scales = "free") +
+  labs(
+    title = "Bias with ±2 SD Error Ranges for the 4 Components of β",
+    x = "Embedding Dimension",
+    y = "Mean Bias (m)",
+    color = "n"
+  ) +
+  theme_big()
+# Plot 10: Embedding Dimension vs. Info Lost for Robustness ---------------
+df_robust %>% 
+  ggplot(aes(x = p0, y = m_info, color = factor(n))) +
+  geom_line() + 
+  labs(
+    title = "Embedding Dimension vs. Info Lost (True Dimension = 5)",
+    x = "Embedding Dimension",
+    y = "Percentage Info Lost",
+    color = "Number of Nodes"
+  ) +
+  theme_big()
+
+# Plot 11: est vs. dim with error bars (Real Data) ---------------------------------------------
 aw_bias %>% pivot_longer(
     cols = starts_with("b"),
     names_to = "est_comp",

@@ -7,7 +7,11 @@ class est:
     """ 
     
     This is a wrapper for the Dirichlet Regression method. Taking in raw data, it processes it and then run the Dirichlet Regression.
-
+    TO USE: 
+    1. est(two_lat_pos = synth_data['lat_pos'], two_adj_mat = synth_data['obs_adj'])
+    2. specify_model(new_mode)
+    if new mode is not "OL", then the embed_dim argument needs to be specified
+    
     Args:
         embed_dimension (int): the embedding dimension when true latent position is unknown
         two_lat_pos (torch.tensor of shape 2 by n by (3p-2)): the latent positions, two_lat_pos[0,:,:] is the latent position at t = 0, the other slice is the latent position at t = 1
@@ -27,19 +31,26 @@ class est:
     
     """
     
-    def __init__(self, embed_dimension, two_lat_pos = None, two_adj_mat = None, groups = 3, constrained = False, beta_guess = None, 
+    def __init__(self, embed_dimension = None, two_lat_pos = None, two_adj_mat = None, groups = 3, constrained = False, beta_guess = None, 
                  beta_0_guess = -10, max_iter_est = 200,  RGD_mode = "softplus", RGD_softplus_parameter = 5, tol_est = 10e-2, tol_RGD = 10e-2):
         
         self.settings = self.settings(embed_dimension, groups, constrained, beta_guess, beta_0_guess, max_iter_est,
                                       RGD_mode, RGD_softplus_parameter, tol_est, tol_RGD)
-
-        self.raw_data = self.data_raw(two_lat_pos, two_adj_mat, embed_dimension)
+        
+        self.input = {"latpos": two_lat_pos, "adjmat": two_adj_mat}
+        self.raw_data = None
         self.data = None
         self.fitted = None
 
-    def specify_mode(self, new_mode, fit = True):
+    def specify_mode(self, new_mode, fit = True, embed_dim = None):
         self.settings.EST.specify_mode(new_mode)
+        
+        if embed_dim is not None:
+            self.settings.EST.embed_dim = embed_dim
+            
+        self.raw_data = self.data_raw(self.input["latpos"], self.input["adjmat"], self.settings.EST.embed_dim)
         self.data = self.process(self.settings.EST.mode)
+        
         if fit:
             self.fitted = self.fit()
 
