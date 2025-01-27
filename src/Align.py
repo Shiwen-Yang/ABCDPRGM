@@ -423,7 +423,7 @@ class GD_RDPG:
             optimizer.step()
             
             if self.settings.verbose & (i % 100 == 0):
-                print(f'Epoch {i}, Align Loss: {align_loss.item()}, simplex Loss: {simplex_loss.item()}')
+                print(f'Epoch {i}, Align Loss: {align_loss.item()}, simplex Loss: {simplex_loss.item()/L}')
 
             go = (torch.norm(Z.grad, p = "fro") > tol) & (i <= 1500)
             i += 1

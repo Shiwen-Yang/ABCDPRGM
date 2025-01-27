@@ -4,6 +4,7 @@ from src import Simulation as sim
 
 def lat_vis(df, LB):
     pd_df = sim.ABC_Monte_Carlo.lat_pos(df.unsqueeze(dim = 0), 3)
+    # pd_df = sim.ABC_Monte_Carlo.lat_pos(df, 3)
     sns.scatterplot(pd_df, x = "dim_1", y = "dim_2", s = 2, hue = "group", legend = False)
 
     plt.xlim(LB, 1)

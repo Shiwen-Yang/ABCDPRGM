@@ -12,8 +12,9 @@ from torch.nn import Parameter
 from scipy import sparse
 from torch import from_numpy
 import matplotlib.pyplot as plt
-from utils import convert
 from numpy.random import default_rng
+
+from CLSNA.utils import convert
 
 def congress_clsna(N=200, d=2, T=10, alpha=1, delta=3, sigma=2, tau = 0.2 , phi=1, gammaw=0.5, gammab=-0.5, n_leave=20):
     """
