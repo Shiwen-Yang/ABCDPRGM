@@ -11,6 +11,7 @@ class est:
     1. est(two_lat_pos = synth_data['lat_pos'], two_adj_mat = synth_data['obs_adj'])
     2. specify_model(new_mode)
     if new mode is not "OL", then the embed_dim argument needs to be specified
+    NOTE raw_data.Z0_ASE, raw_data.Z1_ASE both contain the final column that force the row sums to be 1. When applying this ASE for initialization, the final columns should be removed. 
     
     Args:
         embed_dimension (int): the embedding dimension when true latent position is unknown
