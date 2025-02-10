@@ -188,6 +188,13 @@ df_robust <- read.csv(path_robustness) %>%
 aw_bias <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/real_data/aw_bias.csv")[,-1] %>% as_tibble()
 
 
+
+# real data: away group eigenvalues ---------------------------------------
+aw_eigval <- read.csv("C:/Users/yangs/Documents/Python Projects/ABCDPRGM/real_data/AW_eigval.csv") %>% 
+  as_tibble() %>%
+  select(-X, -index)
+
+
 # Plot theme --------------------------------------------------------------
 theme_big <- function() {
   theme(
@@ -207,7 +214,7 @@ theme_big <- function() {
 evo %>% filter(time %in% c(6, 8, 10, 12)) %>% 
   mutate(Group = as.factor(group)) %>%
   ggplot(aes(x = dim_1, y = dim_2, color = Group)) +
-  geom_point(size = 2, alpha = 0.3) +
+  geom_point(size = 1, alpha = 0.3) +
   geom_density_2d(linewidth = 0.5, alpha = 0.8)  + 
   facet_wrap(~time, labeller = labeller(time = c('6' = 'T = 6', '8' = 'T = 8', '10' = 'T = 10', '12' = 'T = 12')))+
   labs(x = "Dimension 1", y = "Dimension 2", title = "Polarization Through Time") +
@@ -498,3 +505,26 @@ aw_bias %>% pivot_longer(
   labs(x = "Dimension", y = "Estimate", title = "Away: Dim vs. Est with Error Bar (2*SD)") +
   theme_big()
 
+
+
+eigval <- aw_eigval %>% 
+  pivot_longer(cols = starts_with("Eigen"),
+               names_prefix = "Eigenvalue_",
+               names_to = "time",
+               values_to = "eigenvalue") %>%
+  mutate(Signs = if_else(eigenvalue > 0, "positive", "negative"),
+         time = if_else(time == 0, "t = 0", "t = 1")) %>%
+  group_by(time) %>%
+  arrange(desc(eigenvalue)) %>%
+  mutate(rank = row_number())
+
+eigval %>%
+  ggplot(aes(x = rank, y = abs(eigenvalue), color = Signs))+
+  geom_point(size = 2) +
+  facet_wrap(~time, scales = "free_x")+
+  labs(x = "Rank (Descending Order)",
+       y = "Eigenvalue",
+       title = "Eigenvalues in Descending Order by Time") +
+  theme_big()
+
+  
