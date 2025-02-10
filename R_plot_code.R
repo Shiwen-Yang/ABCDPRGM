@@ -531,9 +531,9 @@ tw_bias %>% pivot_longer(
   labs(x = "Dimension", y = "Estimate", title = "Toward: Dim vs. Est with Error Bar (2*SD)") +
   theme_big()
 
-=======
 
 
+# Plot 12: Away Eigenvalues -----------------------------------------------
 eigval <- aw_eigval %>% 
   pivot_longer(cols = starts_with("Eigen"),
                names_prefix = "Eigenvalue_",
@@ -554,5 +554,3 @@ eigval %>%
        title = "Eigenvalues in Descending Order by Time") +
   theme_big()
 
-  
->>>>>>> 828982420d91cfbc8f3b1773c3c0757b977b2a02
