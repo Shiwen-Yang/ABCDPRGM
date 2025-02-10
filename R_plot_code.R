@@ -184,8 +184,9 @@ df_robust <- read.csv(path_robustness) %>%
                names_prefix = "beta") %>%
   group_by(n, p0, component) %>%
   summarize(m = mean(value), m_info = mean(info_lost),sd = sd(value))
-# real data: away group in action -----------------------------------------
+# real data: away and toward group in action -----------------------------------------
 aw_bias <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/real_data/aw_bias.csv")[,-1] %>% as_tibble()
+tw_bias <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/real_data/tw_bias.csv")[,-1] %>% as_tibble()
 
 
 # Plot theme --------------------------------------------------------------
@@ -475,7 +476,7 @@ df_robust %>%
   ) +
   theme_big()
 
-# Plot 11: est vs. dim with error bars (Real Data) ---------------------------------------------
+# Plot 11: Away: est vs. dim with error bars (Real Data) ---------------------------------------------
 aw_bias %>% pivot_longer(
     cols = starts_with("b"),
     names_to = "est_comp",
@@ -496,5 +497,28 @@ aw_bias %>% pivot_longer(
   geom_errorbar(aes(ymin = est - 2 * SD, ymax = est + 2 * SD), width = 0.1) +  # Error bars with 2*SD
   facet_wrap(~ est_comp, scales = "free") +  # Facet wrap by `est_comp`
   labs(x = "Dimension", y = "Estimate", title = "Away: Dim vs. Est with Error Bar (2*SD)") +
+  theme_big()
+
+# Plot 12: Toward: est vs. dim with error bars (Real Data) ---------------------------------------------
+tw_bias %>% pivot_longer(
+  cols = starts_with("b"),
+  names_to = "est_comp",
+  names_prefix = "b",
+  values_to = "est"
+) %>%
+  pivot_longer(
+    cols = starts_with("s"),
+    names_to = "SD_comp",
+    names_prefix = "s",
+    values_to = "SD"
+  ) %>% 
+  filter(est_comp == SD_comp) %>%
+  select(-SD_comp) %>%
+  mutate(est_comp = as.numeric(est_comp) + 1) %>%
+  ggplot(aes(x = dim, y = est)) +
+  geom_point() +  # Scatter plot
+  geom_errorbar(aes(ymin = est - 2 * SD, ymax = est + 2 * SD), width = 0.1) +  # Error bars with 2*SD
+  facet_wrap(~ est_comp, scales = "free") +  # Facet wrap by `est_comp`
+  labs(x = "Dimension", y = "Estimate", title = "Toward: Dim vs. Est with Error Bar (2*SD)") +
   theme_big()
 
