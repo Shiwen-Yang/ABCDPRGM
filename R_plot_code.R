@@ -3,8 +3,36 @@ library(tidyverse)
 library(cowplot)
 library(latex2exp)
 library(ggh4x)
-
-
+save_path = '/Users/shiwen/Downloads/ggplots'
+save_plot_as_pdf <- function(plot, folder, orientation = "landscape") {
+  # Extract the title from the plot
+  title <- ggplot_build(plot)$plot$labels$title
+  
+  # Handle cases where no title is set
+  if (is.null(title) || title == "") {
+    title <- "untitled_plot"
+  }
+  
+  # Clean title to make it a valid filename
+  title <- gsub("[^a-zA-Z0-9_]", "_", title)  # Replace invalid characters with "_"
+  
+  # Define the full file path
+  file_path <- file.path(folder, paste0(title, ".pdf"))
+  
+  # Set A4 dimensions based on orientation
+  if (orientation == "landscape") {
+    width <- 11.69
+    height <- 8.27
+  } else {  # Default to portrait
+    width <- 8.27
+    height <- 11.69
+  }
+  
+  # Save the plot as a PDF
+  ggsave(file_path, plot = plot, device = "pdf", width = width, height = height, units = "in")
+  
+  message("Plot saved as: ", file_path)
+}
 
 
 # evolution of the model example ------------------------------------------
@@ -192,7 +220,7 @@ tw_bias <- read.csv("/Users/shiwen/Documents/GitHub/ABCDPRGM/real_data/tw_bias.c
 
 
 # real data: away group eigenvalues ---------------------------------------
-aw_eigval <- read.csv("C:/Users/yangs/Documents/Python Projects/ABCDPRGM/real_data/AW_eigval.csv") %>% 
+aw_eigval <- read.csv("/Users/shiwen/Documents/GitHub/Python Projects/ABCDPRGM/real_data/AW_eigval.csv") %>% 
   as_tibble() %>%
   select(-X, -index)
 
@@ -200,20 +228,20 @@ aw_eigval <- read.csv("C:/Users/yangs/Documents/Python Projects/ABCDPRGM/real_da
 # Plot theme --------------------------------------------------------------
 theme_big <- function() {
   theme(
-    text = element_text(size = 12, color = "black"),          # Default text size, slightly smaller for paper
-    axis.title.x = element_text(size = 14, face = "bold", margin = margin(t = 10, b = 10, unit = "pt")),  # Compact margins for paper
-    axis.title.y = element_text(size = 14, face = "bold", margin = margin(l = 10, r = 10, unit = "pt")),  # Compact y-axis labels
-    axis.text = element_text(size = 12),                      # Tick labels small and readable
-    legend.title = element_text(size = 12, face = "bold"),    # Legend title size appropriate for paper
-    legend.text = element_text(size = 12),                    # Smaller legend text
-    plot.title = element_text(size = 14, face = "bold", hjust = 0.5, margin = margin(t = 20, b = 20, unit = "pt")),  # Title slightly larger but not too much
-    plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt")  # Minimal margins to save space
+    text = element_text(size = 16, color = "black"),          # Default text size, slightly smaller for paper
+    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 10, b = 10, unit = "pt")),  # Compact margins for paper
+    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 10, r = 10, unit = "pt")),  # Compact y-axis labels
+    axis.text = element_text(size = 16),                      # Tick labels small and readable
+    legend.title = element_text(size = 14, face = "bold"),    # Legend title size appropriate for paper
+    legend.text = element_text(size = 14),                    # Smaller legend text
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t = 20, b = 20, unit = "pt")),  # Title slightly larger but not too much
+    plot.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "pt")  # Minimal margins to save space
   )
 }
 
 # Plot 0: evolution of the model -- Example 1 -----------------------------
 
-evo %>% filter(time %in% c(6, 8, 10, 12)) %>% 
+plot_0 <- evo %>% filter(time %in% c(6, 8, 10, 12)) %>% 
   mutate(Group = as.factor(group)) %>%
   ggplot(aes(x = dim_1, y = dim_2, color = Group)) +
   geom_point(size = 1, alpha = 0.3) +
@@ -222,7 +250,7 @@ evo %>% filter(time %in% c(6, 8, 10, 12)) %>%
   labs(x = "Dimension 1", y = "Dimension 2", title = "Polarization Through Time") +
   theme_big()
 
-
+save_plot_as_pdf(plot_0, save_path)
 
 
 # Plot 1: Align Error: Oracle vs. RGD -- Example 1 ----------------------------------------------------------------
@@ -237,15 +265,7 @@ df_performance %>%
     color = "Time",
     shape = "Method Used to Align"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 16),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  ) +
+  theme_big() +
   scale_shape_manual(values = c(3,4))
   
 
@@ -263,15 +283,7 @@ all_lat_pos %>%
     y = "Dimension 2",
     color = "Group"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
+  theme_big()
 
 
 
@@ -286,23 +298,13 @@ comparison_summary %>%
   facet_wrap(~component, scales = "free", 
              labeller = my_labeller) +
   labs(
-    title = paste0("Comparing Estimates from Different Initialization: ", "Bias", " \U00B1 ", "2 SE" ),
+    title = paste0("Comparing Estimates from Different Initialization: ", "Estimation Error", " \U00B1 ", "2 SE" ),
     x = "Nodes",
-    y = "Bias",
+    y = "Estimation Error",
     color = "Method",
     shape = "Initialization"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
-
-
+  theme_big()
 
 # Plot 4: Comparing Run Time When Using Different Initialization ----------
 
@@ -317,15 +319,7 @@ comparison_summary %>%
     color = "Initialization",
     shape = "Method"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
+  theme_big()
 
 
 
@@ -336,21 +330,13 @@ B_est_bias %>%
   geom_pointrange(aes(ymin = Bias - 2*SE, ymax = Bias + 2*SE), position = position_dodge(width = 450)) +
   facet_wrap(~component, scales = "free", labeller = my_labeller)+
   labs(
-    title = paste0("Comparing Bias of Different Methods: ", "Bias", " \U00B1 ", "2 SE" ),
+    title = paste0("Comparing Estimation Error of Different Methods: ", "Estimation Error", " \U00B1 ", "2 SE" ),
     x = "Nodes",
-    y = "Bias",
+    y = "Estimation Error",
     color = "Method",
     shape = "Initialization"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
+  theme_big()
 
   
 
@@ -371,15 +357,7 @@ B_SE_STD %>%
     y = "Ratio",
     color = "Method"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
+  theme_big()
 
 
 # Plot 7: Nodes vs. Theoretical/Empirical Standard Deviation----------------------------------------------------------------
@@ -404,15 +382,7 @@ B_SE_STD %>%
     color = "",
     shape = "Method"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
+  theme_big()
 # Plot 8: Run Time Comparison Across Methods --------------------------------------
 
 B_est_bias %>%
@@ -425,15 +395,7 @@ B_est_bias %>%
     color = "Method",
     shape = "Initialization"
   ) +
-  theme(
-    text = element_text(size = 16, color = "black"),          # Default text size and color
-    axis.title.x = element_text(size = 20, face = "bold", margin = margin(t = 30, b = 30, unit = "pt")), 
-    axis.title.y = element_text(size = 20, face = "bold", margin = margin(l = 30, r = 30, unit = "pt")), # x and y axis labels
-    axis.text = element_text(size = 14),                      # x and y axis tick labels
-    legend.title = element_text(size = 14, face = "bold"),    # Legend title
-    legend.text = element_text(size = 14),                    # Legend text
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5, margin = margin(t= 30, b = 30, unit = "pt"))  # Plot title
-  )
+  theme_big()
 
 
 
@@ -452,7 +414,8 @@ B_SE_STD %>%
   ggplot(aes(x = nodes, y = STD_EST, shape = STD_EST_type, color = method, linetype = STD_EST_type)) +
   # geom_point(size = 2, alpha = .5) + #, position= position_dodge(width = 400)) + 
   geom_line() +
-  facet_wrap(~component, scales = "free")
+  facet_wrap(~component, scales = "free")+
+  theme_big()
 
 
 
@@ -507,7 +470,7 @@ aw_bias %>% pivot_longer(
   labs(x = "Dimension", y = "Estimate", title = "Away: Dim vs. Est with Error Bar (2*SD)") +
   theme_big()
 
-<<<<<<< HEAD
+
 # Plot 12: Toward: est vs. dim with error bars (Real Data) ---------------------------------------------
 tw_bias %>% pivot_longer(
   cols = starts_with("b"),
@@ -533,7 +496,7 @@ tw_bias %>% pivot_longer(
 
 
 
-# Plot 12: Away Eigenvalues -----------------------------------------------
+# Plot 13: Away Eigenvalues -----------------------------------------------
 eigval <- aw_eigval %>% 
   pivot_longer(cols = starts_with("Eigen"),
                names_prefix = "Eigenvalue_",
