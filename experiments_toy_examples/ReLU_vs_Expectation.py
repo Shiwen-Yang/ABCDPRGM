@@ -43,10 +43,7 @@ class ReLUPenalty2D(nn.Module):
         
         return total_loss_0, total_loss_1
 
-def shortest_distance_to_y_eq_x(point):
-    point = np.squeeze(np.array(point))
-    x0, y0 = point
-    return abs(x0 - y0) / np.sqrt(2)
+
 
 def plot_loss_landscape_with_slider(Y, sigma=0.02, num_points=1000, theta_min = -torch.pi, theta_max = torch.pi):
     thetas = torch.linspace(theta_min, theta_max, num_points, dtype=torch.float64)
@@ -89,7 +86,6 @@ def plot_loss_landscape_with_slider(Y, sigma=0.02, num_points=1000, theta_min = 
     axes[1].axis('equal')
     axes[1].set_xlim(-0.5, 1.5)
     axes[1].set_ylim(-0.5, 1.5)
-    axes[1].legend(title=f'Dist(mean(Y), y=x) ≈')
     axes[1].grid(True)
 
     # Slider
@@ -111,9 +107,6 @@ def plot_loss_landscape_with_slider(Y, sigma=0.02, num_points=1000, theta_min = 
         scatter_mean.set_offsets(Y_mean_rotated.numpy())
         current_theta_line.set_xdata([theta.item(), theta.item()])
         
-        distance = shortest_distance_to_y_eq_x(Y_mean_rotated)
-        new_label = f'Dist(mean(Y), y=x) ≈ {distance:.4f}'
-        axes[1].legend(title=new_label)
         fig.canvas.draw_idle()
 
     theta_slider.on_changed(update)
@@ -126,9 +119,9 @@ def plot_loss_landscape_with_slider(Y, sigma=0.02, num_points=1000, theta_min = 
 
 
 if __name__ == "__main__":
-    alpha = torch.tensor([[10, 1, 1], [1, 10, 1]], dtype= torch.float64)
+    alpha = torch.tensor([[1, 1, 1], [1, 1, 1]], dtype= torch.float64)/10
     # alpha = torch.tensor([[5, 1]], dtype= torch.float64)
-    n= 2
+    n= 2000
     K, p = alpha.shape
     torch.manual_seed(5)
     dir = Dirichlet(alpha)

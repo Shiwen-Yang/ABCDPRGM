@@ -47,53 +47,53 @@
 
 
 
-# import numpy as np
-# import matplotlib.pyplot as plt
-# from scipy.stats import norm
-# from matplotlib.widgets import Slider
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+from matplotlib.widgets import Slider
 
-# # Define the mollified ReLU function psi_tau
-# def psi_tau(x, tau):
-#     return norm.pdf(x / tau) * tau + x * norm.cdf(x / tau)
+# Define the mollified ReLU function psi_tau
+def psi_tau(x, tau):
+    return norm.pdf(x / tau) * tau + x * norm.cdf(x / tau)
 
-# # Define the loss function for a 2D input
-# def loss_2d(x1, x2, sigma):
-#     relu_penalty = psi_tau(-x1, sigma) + psi_tau(-x2, sigma)
-#     sum_penalty = psi_tau(x1 + x2 - 1, np.sqrt(2) * sigma)
-#     return relu_penalty + sum_penalty
+# Define the loss function for a 2D input
+def loss_2d(x1, x2, sigma):
+    relu_penalty = psi_tau(-x1, sigma) + psi_tau(-x2, sigma)
+    sum_penalty = psi_tau(x1 + x2 - 1, np.sqrt(2) * sigma)
+    return relu_penalty + sum_penalty
 
-# # Create grid
-# x1_vals = np.linspace(-0.2, 1.2, 300)
-# x2_vals = np.linspace(-0.2, 1.2, 300)
-# X1, X2 = np.meshgrid(x1_vals, x2_vals)
+# Create grid
+x1_vals = np.linspace(-0.2, 1.2, 300)
+x2_vals = np.linspace(-0.2, 1.2, 300)
+X1, X2 = np.meshgrid(x1_vals, x2_vals)
 
-# # Initial sigma
-# initial_sigma = 0.2
-# Z = loss_2d(X1, X2, initial_sigma)
+# Initial sigma
+initial_sigma = 0.2
+Z = loss_2d(X1, X2, initial_sigma)
 
-# # Plot setup
-# fig, ax = plt.subplots(figsize=(7, 6))
-# plt.subplots_adjust(left=0.1, bottom=0.25)
-# cmap = ax.pcolormesh(X1, X2, Z, shading='auto', cmap='viridis')
-# fig.colorbar(cmap, ax=ax)
-# ax.set_title('Loss Landscape in $\\mathbb{R}^2$')
-# ax.set_xlabel('$x_1$')
-# ax.set_ylabel('$x_2$')
+# Plot setup
+fig, ax = plt.subplots(figsize=(7, 6))
+plt.subplots_adjust(left=0.1, bottom=0.25)
+cmap = ax.pcolormesh(X1, X2, Z, shading='auto', cmap='viridis')
+fig.colorbar(cmap, ax=ax)
+ax.set_title('Loss Landscape in $\\mathbb{R}^2$')
+ax.set_xlabel('$x_1$')
+ax.set_ylabel('$x_2$')
 
-# # Slider axis
-# ax_sigma = plt.axes([0.1, 0.1, 0.8, 0.05])
-# sigma_slider = Slider(ax_sigma, 'σ', 0.01, 1.0, valinit=initial_sigma, valstep=0.01)
+# Slider axis
+ax_sigma = plt.axes([0.1, 0.1, 0.8, 0.05])
+sigma_slider = Slider(ax_sigma, 'σ', 0.01, 0.5, valinit=initial_sigma, valstep=0.01)
 
-# # Update function
-# def update(val):
-#     sigma = sigma_slider.val
-#     Z = loss_2d(X1, X2, sigma)
-#     cmap.set_array(Z.ravel())
-#     cmap.set_clim(vmin=Z.min(), vmax=Z.max())
-#     fig.canvas.draw_idle()
+# Update function
+def update(val):
+    sigma = sigma_slider.val
+    Z = loss_2d(X1, X2, sigma)
+    cmap.set_array(Z.ravel())
+    cmap.set_clim(vmin=Z.min(), vmax=Z.max())
+    fig.canvas.draw_idle()
 
-# sigma_slider.on_changed(update)
-# plt.show()
+sigma_slider.on_changed(update)
+plt.show()
 
 
 
@@ -237,59 +237,62 @@
 
 # plt.show()
 
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import norm
-from matplotlib.widgets import Slider
-
-def tighter_lambda(y, p, sigma):
-    phi_i = norm.pdf(-y / sigma)
-    phi_s = norm.pdf((p * y - 1) / (np.sqrt(p) * sigma))
-    avg_phi_i = phi_i  # since y is scalar here
-    return (avg_phi_i / sigma) + (np.sqrt(p) / sigma) * phi_s
-
-# Define the function
-def f(y, p, sigma):
-    Phi_i = norm.cdf(-y / sigma)
-    Phi_s = norm.cdf((p * y - 1) / (np.sqrt(p) * sigma))
-    lambda_y = tighter_lambda(y, p, sigma)
-    return lambda_y * y**2 + (Phi_i - Phi_s) * y
 
 
 
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from scipy.stats import norm
+# from matplotlib.widgets import Slider
+
+# def tighter_lambda(y, p, sigma):
+#     phi_i = norm.pdf(-y / sigma)
+#     phi_s = norm.pdf((p * y - 1) / (np.sqrt(p) * sigma))
+#     avg_phi_i = phi_i  # since y is scalar here
+#     return (avg_phi_i / sigma) + (np.sqrt(p) / sigma) * phi_s
+
+# # Define the function
+# def f(y, p, sigma):
+#     Phi_i = norm.cdf(-y / sigma)
+#     Phi_s = norm.cdf((p * y - 1) / (np.sqrt(p) * sigma))
+#     lambda_y = tighter_lambda(y, p, sigma)
+#     return lambda_y * y**2 + (Phi_i - Phi_s) * y
 
 
-# Initial values
-p0 = 3.0
-sigma0 = 1.0
-y_vals = np.linspace(-5, 5, 500)
 
-# Plot setup
-fig, ax = plt.subplots()
-plt.subplots_adjust(bottom=0.3)
-curve, = plt.plot(y_vals, f(y_vals, p0, sigma0), lw=2)
-ax.set_title("Plot of $f(y) = \\lambda y^2 + (\\Phi_i - \\Phi_s) y$")
-ax.set_xlabel("y")
-ax.set_ylabel("f(y)")
-ax.grid(True)
 
-# Slider axes
-ax_p = plt.axes([0.2, 0.15, 0.65, 0.03])
-ax_sigma = plt.axes([0.2, 0.1, 0.65, 0.03])
 
-# Sliders
-slider_p = Slider(ax_p, r"$p$", valmin=1.0, valmax=10.0, valinit=p0)
-slider_sigma = Slider(ax_sigma, r"$\sigma$", valmin=0.01, valmax=5.0, valinit=sigma0)
+# # Initial values
+# p0 = 3.0
+# sigma0 = 1.0
+# y_vals = np.linspace(-5, 5, 500)
 
-# Update function
-def update(val):
-    p = slider_p.val
-    sigma = slider_sigma.val
-    curve.set_ydata(f(y_vals, p, sigma))
-    fig.canvas.draw_idle()
+# # Plot setup
+# fig, ax = plt.subplots()
+# plt.subplots_adjust(bottom=0.3)
+# curve, = plt.plot(y_vals, f(y_vals, p0, sigma0), lw=2)
+# ax.set_title("Plot of $f(y) = \\lambda y^2 + (\\Phi_i - \\Phi_s) y$")
+# ax.set_xlabel("y")
+# ax.set_ylabel("f(y)")
+# ax.grid(True)
 
-# Connect update to sliders
-slider_p.on_changed(update)
-slider_sigma.on_changed(update)
+# # Slider axes
+# ax_p = plt.axes([0.2, 0.15, 0.65, 0.03])
+# ax_sigma = plt.axes([0.2, 0.1, 0.65, 0.03])
 
-plt.show()
+# # Sliders
+# slider_p = Slider(ax_p, r"$p$", valmin=1.0, valmax=10.0, valinit=p0)
+# slider_sigma = Slider(ax_sigma, r"$\sigma$", valmin=0.01, valmax=5.0, valinit=sigma0)
+
+# # Update function
+# def update(val):
+#     p = slider_p.val
+#     sigma = slider_sigma.val
+#     curve.set_ydata(f(y_vals, p, sigma))
+#     fig.canvas.draw_idle()
+
+# # Connect update to sliders
+# slider_p.on_changed(update)
+# slider_sigma.on_changed(update)
+
+# plt.show()
