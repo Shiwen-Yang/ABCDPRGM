@@ -47,53 +47,53 @@
 
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import norm
-from matplotlib.widgets import Slider
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from scipy.stats import norm
+# from matplotlib.widgets import Slider
 
-# Define the mollified ReLU function psi_tau
-def psi_tau(x, tau):
-    return norm.pdf(x / tau) * tau + x * norm.cdf(x / tau)
+# # Define the mollified ReLU function psi_tau
+# def psi_tau(x, tau):
+#     return norm.pdf(x / tau) * tau + x * norm.cdf(x / tau)
 
-# Define the loss function for a 2D input
-def loss_2d(x1, x2, sigma):
-    relu_penalty = psi_tau(-x1, sigma) + psi_tau(-x2, sigma)
-    sum_penalty = psi_tau(x1 + x2 - 1, np.sqrt(2) * sigma)
-    return relu_penalty + sum_penalty
+# # Define the loss function for a 2D input
+# def loss_2d(x1, x2, sigma):
+#     relu_penalty = psi_tau(-x1, sigma) + psi_tau(-x2, sigma)
+#     sum_penalty = psi_tau(x1 + x2 - 1, np.sqrt(2) * sigma)
+#     return relu_penalty + sum_penalty
 
-# Create grid
-x1_vals = np.linspace(-0.2, 1.2, 300)
-x2_vals = np.linspace(-0.2, 1.2, 300)
-X1, X2 = np.meshgrid(x1_vals, x2_vals)
+# # Create grid
+# x1_vals = np.linspace(-0.2, 1.2, 300)
+# x2_vals = np.linspace(-0.2, 1.2, 300)
+# X1, X2 = np.meshgrid(x1_vals, x2_vals)
 
-# Initial sigma
-initial_sigma = 0.2
-Z = loss_2d(X1, X2, initial_sigma)
+# # Initial sigma
+# initial_sigma = 0.2
+# Z = loss_2d(X1, X2, initial_sigma)
 
-# Plot setup
-fig, ax = plt.subplots(figsize=(7, 6))
-plt.subplots_adjust(left=0.1, bottom=0.25)
-cmap = ax.pcolormesh(X1, X2, Z, shading='auto', cmap='viridis')
-fig.colorbar(cmap, ax=ax)
-ax.set_title('Loss Landscape in $\\mathbb{R}^2$')
-ax.set_xlabel('$x_1$')
-ax.set_ylabel('$x_2$')
+# # Plot setup
+# fig, ax = plt.subplots(figsize=(7, 6))
+# plt.subplots_adjust(left=0.1, bottom=0.25)
+# cmap = ax.pcolormesh(X1, X2, Z, shading='auto', cmap='viridis')
+# fig.colorbar(cmap, ax=ax)
+# ax.set_title('Loss Landscape in $\\mathbb{R}^2$')
+# ax.set_xlabel('$x_1$')
+# ax.set_ylabel('$x_2$')
 
-# Slider axis
-ax_sigma = plt.axes([0.1, 0.1, 0.8, 0.05])
-sigma_slider = Slider(ax_sigma, 'σ', 0.01, 0.5, valinit=initial_sigma, valstep=0.01)
+# # Slider axis
+# ax_sigma = plt.axes([0.1, 0.1, 0.8, 0.05])
+# sigma_slider = Slider(ax_sigma, 'σ', 0.01, 0.5, valinit=initial_sigma, valstep=0.01)
 
-# Update function
-def update(val):
-    sigma = sigma_slider.val
-    Z = loss_2d(X1, X2, sigma)
-    cmap.set_array(Z.ravel())
-    cmap.set_clim(vmin=Z.min(), vmax=Z.max())
-    fig.canvas.draw_idle()
+# # Update function
+# def update(val):
+#     sigma = sigma_slider.val
+#     Z = loss_2d(X1, X2, sigma)
+#     cmap.set_array(Z.ravel())
+#     cmap.set_clim(vmin=Z.min(), vmax=Z.max())
+#     fig.canvas.draw_idle()
 
-sigma_slider.on_changed(update)
-plt.show()
+# sigma_slider.on_changed(update)
+# plt.show()
 
 
 
