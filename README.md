@@ -20,7 +20,7 @@ These attractors are calculated using the observed adjacency matrix at time $t$ 
 
 The model assumes latent positions evolve via a **Dirichlet Generalized Linear Model (GLM)** with a log-link function. Specifically, the lifted latent position $Z^*_{i,t} \in \mathbb{H}^{p+1}$ evolves as:
 
-$Z^*_{i,t+1} \sim \text{Dirichlet}\left(\exp\left(\beta_1Z^*_{i,t}\right)\right)$
+$Z^*_{i,t+1} \sim \text{Dirichlet}\left(\exp\left(\beta_{1}Z^{*}_{i,t} + \beta_{2}A^{w*}_{i,t} + \beta_{3}A^{b*}_{i,t} + \beta_{4}\right)\right)$
 
 Here:
 - $\beta_1$: self-inertia (past influence)
