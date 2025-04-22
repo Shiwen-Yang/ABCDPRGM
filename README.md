@@ -6,7 +6,7 @@
 
 To reproduce the main synthetic experiments and figures from the paper, use the Jupyter notebook:
 
-**`Gen_Sim_Data.ipynb`(https://github.com/Shiwen-Yang/ABCDPRGM/blob/main/Gen_Sim_Data.ipynb)**
+**[`Gen_Sim_Data.ipynb`](https://github.com/Shiwen-Yang/ABCDPRGM/blob/main/Gen_Sim_Data.ipynb)**
 
 This notebook will:
 - Generate synthetic dynamic networks based on the ABCDPRGM model
