@@ -22,6 +22,10 @@ You can modify values such as:
 
 No additional configuration files are required. All dependencies are standard Python scientific packages (see requirements.txt).
 
+To reproduce the plots from the paper, use 
+
+**[R_plot_code.R](https://github.com/Shiwen-Yang/ABCDPRGM/blob/main/R_plot_code.R)**
+
 ### 📊 Real-World Data Analysis (Age of Empires IV)
 
 To replicate the real-world data analysis presented in the paper, use the notebook:
