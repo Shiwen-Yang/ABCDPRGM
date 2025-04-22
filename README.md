@@ -4,7 +4,7 @@
 
 ### Core Structure and Attractors🧲
 
-Each node $\( i \)$ is assigned a latent position \( Z_{i,t} \in \mathbb{R}^p \), constrained so that inner products \( Z_{i,t}^T Z_{j,t} \in [0, 1] \). At each time point \( t \), a symmetric adjacency matrix \( Y_t \) is generated such that:
+Each node $i$ is assigned a latent position $Z_{i,t} \in \mathbb{R}^p$, constrained so that inner products \( Z_{i,t}^T Z_{j,t} \in [0, 1] \). At each time point \( t \), a symmetric adjacency matrix \( Y_t \) is generated such that:
 \[
 Y_{ij,t} \sim \text{Bernoulli}(Z_{i,t}^T Z_{j,t})
 \]
