@@ -23,7 +23,7 @@ The model assumes latent positions evolve via a **Dirichlet Generalized Linear M
 Z^*_{i,t+1} \sim \text{Dirichlet}\left( \exp\left[\beta_1 Z^*_{i,t} + \beta_2 A^{w*}_{i,t} + \beta_3 A^{b*}_{i,t} + \beta_4 \right] \right)
 \]
 Here:
-- \( \beta_1 \): self-inertia (past influence)
+- \( $\beta_1$ \): self-inertia (past influence)
 - \( \beta_2 \): same-group attractor strength
 - \( \beta_3 \): different-group attractor strength
 - \( \beta_4 \): intercept term (controls variance)
